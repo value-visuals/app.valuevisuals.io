@@ -20,8 +20,8 @@ type ChartPoint = { t: number; price: number };
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 const COIN_META: Record<
-  "bitcoin" | "ethereum",
-  { name: string; color: string; logo: string; symbol: "BTC" | "ETH" }
+  "bitcoin" | "ethereum" | "monero",
+  { name: string; color: string; logo: string; symbol: "BTC" | "ETH" | "XMR" }
 > = {
   bitcoin: {
     name: "Bitcoin (BTC)",
@@ -29,11 +29,19 @@ const COIN_META: Record<
     logo: "/bitcoin.svg",
     symbol: "BTC",
   },
+
   ethereum: {
     name: "Ethereum (ETH)",
     color: "#627EEA",
     logo: "/ethereum.png",
     symbol: "ETH",
+  },
+
+  monero: {
+    name: "Monero (XMR)",
+    color: "#FF6600",
+    logo: "/monero.png",
+    symbol: "XMR",
   },
 };
 
@@ -126,7 +134,7 @@ export default function PriceChart({
   coin,
   className = "",
 }: {
-  coin: "bitcoin" | "ethereum";
+  coin: "bitcoin" | "ethereum" | "monero";
   className?: string;
 }) {
   const meta = COIN_META[coin];
@@ -146,11 +154,17 @@ export default function PriceChart({
   });
 
   const rawPoints = toChartData(data);
-  const chartData = rawPoints.map((p) => ({
-    t: p.t,
-    label: formatXAxis(p.t, selected.days),
-    price: p.price,
-  }));
+  const chartData = rawPoints
+    .filter(
+      (p) =>
+        Number.isFinite(p.t) &&
+        Number.isFinite(p.price)
+    )
+    .sort((a, b) => a.t - b.t)
+    .map((p) => ({
+      t: p.t,
+      price: p.price,
+    }));
 
   return (
     <div className={`rounded-2xl bg-card text-card-foreground p-4 shadow-sm ring-1 ring-border ${className}`}>
@@ -206,7 +220,11 @@ export default function PriceChart({
             <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" />
 
             <XAxis
-              dataKey="label"
+              type="number"
+              dataKey="t"
+              domain={["dataMin", "dataMax"]}
+              scale="time"
+              tickFormatter={(value) => formatXAxis(Number(value), selected.days)}
               minTickGap={24}
               tick={{ fill: "var(--muted-foreground)" }}
               axisLine={false}

@@ -19,6 +19,7 @@ const routes = [
   { href: "/dashboard", label: "Dashboard", icon: ChartNoAxesCombined },
   { href: "/dashboard/portfolio", label: "Portfolio", icon: BarChart2 },
   { href: "/dashboard/bitcoin", label: "Bitcoin", icon: Bitcoin },
+  { href: "/dashboard/monero", label: "Monero", icon: BarChart2 },
   { href: "/dashboard/ethereum", label: "Ethereum", icon: Gem },
   { href: "/dashboard/gold", label: "Gold", icon: Medal },
   { href: "/dashboard/silver", label: "Silver", icon: Coins },

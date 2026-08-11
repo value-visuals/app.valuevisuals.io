@@ -1,27 +1,33 @@
-# Use the official Node.js 22.x Alpine image
 FROM node:22-alpine
 
-# Install required system libraries for sharp
 RUN apk add --no-cache libc6-compat
 
-# Set working directory
 WORKDIR /app
 
-# Copy and install dependencies
 COPY package.json package-lock.json ./
-RUN npm install
+RUN npm ci
 
-# Copy source files
 COPY . .
 
-# Build the Next.js app
+# Firebase / Next.js build-time environment variables
+ARG NEXT_PUBLIC_FIREBASE_API_KEY
+ARG NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+ARG NEXT_PUBLIC_FIREBASE_PROJECT_ID
+ARG NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+ARG NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+ARG NEXT_PUBLIC_FIREBASE_APP_ID
+
+ENV NEXT_PUBLIC_FIREBASE_API_KEY=$NEXT_PUBLIC_FIREBASE_API_KEY
+ENV NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=$NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+ENV NEXT_PUBLIC_FIREBASE_PROJECT_ID=$NEXT_PUBLIC_FIREBASE_PROJECT_ID
+ENV NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=$NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+ENV NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=$NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+ENV NEXT_PUBLIC_FIREBASE_APP_ID=$NEXT_PUBLIC_FIREBASE_APP_ID
+
 RUN npm run build
 
-# Prune dev dependencies (safe since sharp is in dependencies)
 RUN npm prune --production
 
-# Expose app port
 EXPOSE 3015
 
-# Start the Next.js server
 CMD ["npm", "start"]
