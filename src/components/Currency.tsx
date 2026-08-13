@@ -15,18 +15,23 @@ const CurrencyContext = createContext<Ctx | null>(null);
 export function CurrencyProvider({ children }: { children: React.ReactNode }) {
   const [currency, setCurrency] = useState<Currency>(DEFAULT);
 
-  // restore from URL (?cur=EUR) or localStorage
   useEffect(() => {
     const url = new URL(window.location.href);
     const fromUrl = (url.searchParams.get("cur") || "").toUpperCase();
     const fromStorage = localStorage.getItem("currency") || "";
-    const pick = (["USD","EUR","GBP"] as Currency[]).find(c => c === (fromUrl as Currency))
-      || (["USD","EUR","GBP"] as Currency[]).find(c => c === (fromStorage as Currency))
-      || DEFAULT;
+
+    const pick =
+      (["USD", "EUR", "GBP"] as Currency[]).find(
+        (c) => c === (fromUrl as Currency)
+      ) ||
+      (["USD", "EUR", "GBP"] as Currency[]).find(
+        (c) => c === (fromStorage as Currency)
+      ) ||
+      DEFAULT;
+
     setCurrency(pick);
   }, []);
 
-  // write to URL + localStorage when changed
   useEffect(() => {
     const url = new URL(window.location.href);
     url.searchParams.set("cur", currency);
@@ -35,24 +40,44 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
   }, [currency]);
 
   const value = useMemo(() => ({ currency, setCurrency }), [currency]);
-  return <CurrencyContext.Provider value={value}>{children}</CurrencyContext.Provider>;
+
+  return (
+    <CurrencyContext.Provider value={value}>
+      {children}
+    </CurrencyContext.Provider>
+  );
 }
 
 export function useCurrency() {
   const ctx = useContext(CurrencyContext);
-  if (!ctx) throw new Error("useCurrency must be used within <CurrencyProvider>");
+  if (!ctx) {
+    throw new Error("useCurrency must be used within <CurrencyProvider>");
+  }
   return ctx;
 }
 
-export function CurrencyToggle({ className = "" }: { className?: string }) {
+export function CurrencyToggle({
+  className = "",
+  currencies = ["USD", "EUR", "GBP"],
+}: {
+  className?: string;
+  currencies?: Currency[];
+}) {
   const { currency, setCurrency } = useCurrency();
-  const options: Currency[] = ["USD", "EUR", "GBP"];
+
+  // Make sure the current currency is valid for this toggle.
+  useEffect(() => {
+    if (!currencies.includes(currency)) {
+      setCurrency(currencies[0]);
+    }
+  }, [currency, currencies, setCurrency]);
 
   return (
     <div className={`inline-flex items-center gap-2 ${className}`}>
       <div className="inline-flex rounded-lg border border-border p-1 bg-muted/60 shadow-sm">
-        {options.map((c) => {
+        {currencies.map((c) => {
           const active = c === currency;
+
           return (
             <button
               key={c}

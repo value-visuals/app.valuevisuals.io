@@ -1,7 +1,10 @@
 // src/app/(dashboard)/dashboard/ethereum/page.tsx
 import EthereumTopTile from "@/components/toptiles/EthereumTopTile";
 import PriceChart from "@/components/charts/PriceChart";
-import { CurrencyProvider } from "@/components/Currency";
+import {
+  CurrencyProvider,
+  CurrencyToggle,
+} from "@/components/Currency";
 import Image from "next/image";
 import Polymarket from "@/components/Polymarket";
 
@@ -14,6 +17,9 @@ export default function EthereumPage() {
           <Image src={`/ethereum.png`} alt={`Ethereum`} width={20} height={20} />
           <span>Ethereum</span>
         </h1>
+        <div className="self-start sm:self-auto">
+              <CurrencyToggle />
+        </div>
       </div>
 
       <EthereumTopTile />

@@ -1,7 +1,10 @@
 // src/app/(dashboard)/dashboard/monero/page.tsx
 import MoneroTopTile from "@/components/toptiles/MoneroTopTile";
 import PriceChart from "@/components/charts/PriceChart";
-import { CurrencyProvider } from "@/components/Currency";
+import {
+  CurrencyProvider,
+  CurrencyToggle,
+} from "@/components/Currency";
 import Image from "next/image";
 import Polymarket from "@/components/Polymarket";
 
@@ -14,6 +17,9 @@ export default function MoneroPage() {
             <Image src={`/monero.png`} alt={`Monero`} width={20} height={20} />
             <span>Monero</span>
           </h1>
+        <div className="self-start sm:self-auto">
+              <CurrencyToggle />
+        </div>
         </div>
 
         <MoneroTopTile />

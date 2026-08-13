@@ -2,15 +2,22 @@
 import React from "react";
 import TopTile from "@/components/toptiles/SilverTopTile";
 import MetalChart from "@/components/charts/MetalsChart";
-import Polymarket from "@/components/Polymarket";
+import Polymarket from "@/components/Polymarket";import {
+  CurrencyProvider,
+  CurrencyToggle,
+} from "@/components/Currency";
 
 export default function SilverPage() {
   return (
+    <CurrencyProvider>
     <div className="space-y-6 mx-auto max-w-7xl">
       <div className="flex items-center justify-between">
         <h1 className="flex items-center gap-2 text-xl font-semibold">
           <span>Silver</span>
         </h1>
+        <div className="self-start sm:self-auto">
+            <CurrencyToggle currencies={["USD"]} />
+        </div>
       </div>
         <TopTile />
         <div className="grid grid-cols-1 gap-6">
@@ -21,6 +28,7 @@ export default function SilverPage() {
           <Polymarket limit={8} livePrices asset="silver"/>
         </div>
     </div>
+    </CurrencyProvider>
   );
 }
 
