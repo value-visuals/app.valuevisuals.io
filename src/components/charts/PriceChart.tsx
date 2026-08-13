@@ -48,7 +48,7 @@ const COIN_META: Record<
   monero: {
     name: "Monero",
     color: "#FF6600",
-    logo: "/monero.png",
+    logo: "/monero.svg",
     symbol: "XMR",
   },
 };
