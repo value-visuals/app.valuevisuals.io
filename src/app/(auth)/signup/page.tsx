@@ -10,7 +10,7 @@ import { Mail, Lock, Eye, EyeOff, User } from "lucide-react";
 import ThemeToggle from "@/components/theme/ThemeToggle";
 import { getAuth, signInWithCustomToken } from "firebase/auth";
 
-type InterestKey = "bitcoin" | "ethereum" | "gold" | "silver";
+type InterestKey = "bitcoin" | "ethereum" | "monero" | "gold" | "silver";
 
 const ALL_INTERESTS: { key: InterestKey; label: string; icon: React.ReactNode }[] = [
   {
@@ -34,6 +34,20 @@ const ALL_INTERESTS: { key: InterestKey; label: string; icon: React.ReactNode }[
       <Image
         src="/ethereum.png"
         alt="Ethereum"
+        width={20}
+        height={20}
+        className="h-5 w-5"
+        priority
+      />
+    ),
+  },
+  {
+    key: "monero",
+    label: "Monero",
+    icon: (
+      <Image
+        src="/monero.svg"
+        alt="Monero"
         width={20}
         height={20}
         className="h-5 w-5"
