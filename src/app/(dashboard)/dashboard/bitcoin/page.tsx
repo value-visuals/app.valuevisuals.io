@@ -1,7 +1,10 @@
 // src/app/(dashboard)/dashboard/bitcoin/page.tsx
 import BitcoinTopTile from "@/components/toptiles/BitcoinTopTile";
 import PriceChart from "@/components/charts/PriceChart";
-import { CurrencyProvider } from "@/components/Currency";
+import {
+  CurrencyProvider,
+  CurrencyToggle,
+} from "@/components/Currency";
 import Image from "next/image";
 import Polymarket from "@/components/Polymarket";
 
@@ -14,6 +17,9 @@ export default function BitcoinPage() {
             <Image src={`/bitcoin.svg`} alt={`Bitcoin`} width={20} height={20} />
             <span>Bitcoin</span>
           </h1>
+          <div className="self-start sm:self-auto">
+              <CurrencyToggle />
+          </div>
         </div>
 
         <BitcoinTopTile />
