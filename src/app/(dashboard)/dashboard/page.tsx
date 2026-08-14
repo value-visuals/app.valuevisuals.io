@@ -30,14 +30,12 @@ export default function DashboardPage() {
         <header
           className="
             flex
-            flex-col
+            items-center
+            justify-between
             gap-3
-            sm:flex-row
-            sm:items-center
-            sm:justify-between
           "
         >
-          <div className="flex min-w-0 items-center gap-2">
+          <div className="flex min-w-0 flex-1 items-center gap-2">
             <ChartNoAxesCombined
               aria-hidden="true"
               className="size-5 shrink-0 sm:size-6"
@@ -45,6 +43,7 @@ export default function DashboardPage() {
 
             <h1
               className="
+                min-w-0
                 truncate
                 text-lg
                 font-semibold
@@ -56,7 +55,7 @@ export default function DashboardPage() {
             </h1>
           </div>
 
-          <div className="self-start sm:self-auto">
+          <div className="shrink-0">
             <CurrencyToggle />
           </div>
         </header>
