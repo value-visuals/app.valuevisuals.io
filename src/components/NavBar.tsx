@@ -9,7 +9,8 @@ import {
   Wallet,
   Medal,
   BarChart2,
-  Gem
+  Gem, 
+  Lock
 } from "lucide-react";
 import LogoutButton from "@/components/auth/LogoutButton";
 import ThemeToggle from "@/components/theme/ThemeToggle";
@@ -19,7 +20,7 @@ const routes = [
   { href: "/dashboard", label: "Dashboard", icon: ChartNoAxesCombined },
   { href: "/dashboard/portfolio", label: "Portfolio", icon: BarChart2 },
   { href: "/dashboard/bitcoin", label: "Bitcoin", icon: Bitcoin },
-  { href: "/dashboard/monero", label: "Monero", icon: BarChart2 },
+  { href: "/dashboard/monero", label: "Monero", icon: Lock },
   { href: "/dashboard/ethereum", label: "Ethereum", icon: Gem },
   { href: "/dashboard/gold", label: "Gold", icon: Medal },
   { href: "/dashboard/silver", label: "Silver", icon: Coins },
