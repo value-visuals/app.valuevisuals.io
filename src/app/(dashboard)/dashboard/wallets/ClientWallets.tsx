@@ -20,6 +20,7 @@ async function apiGetWallets(chain?: Chain) {
   if (!res.ok) throw new Error(await res.text());
   return res.json(); // { bitcoin?: [], ethereum?: [] }
 }
+
 async function apiSaveWallet(chain: Chain, address: string) {
   const res = await fetch(`/api/crypto/wallets`, {
     method: "POST",
@@ -30,6 +31,7 @@ async function apiSaveWallet(chain: Chain, address: string) {
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
+
 async function apiDeleteWallet(chain: Chain, address: string) {
   const res = await fetch(
     `/api/crypto/wallets?chain=${chain}&address=${encodeURIComponent(address)}`,
@@ -38,6 +40,7 @@ async function apiDeleteWallet(chain: Chain, address: string) {
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
+
 async function apiUpdateWallet(chain: Chain, oldAddress: string, newAddress: string) {
   const res = await fetch(`/api/crypto/wallets`, {
     method: "PUT",
@@ -59,6 +62,7 @@ async function apiGetMetals(metal: Metal) {
   if (!res.ok) throw new Error(await res.text());
   return res.json() as Promise<{ gold?: MetalWallet[]; silver?: MetalWallet[] }>;
 }
+
 async function apiSaveMetal(metal: Metal, name: string, amount: number, unit: MetalUnit) {
   const res = await fetch(`/api/metals/wallets`, {
     method: "POST",
@@ -69,6 +73,7 @@ async function apiSaveMetal(metal: Metal, name: string, amount: number, unit: Me
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
+
 async function apiUpdateMetal(
   metal: Metal,
   payload: Partial<MetalWallet> & { id: string }
@@ -82,6 +87,7 @@ async function apiUpdateMetal(
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
+
 async function apiDeleteMetal(metal: Metal, id: string) {
   const res = await fetch(
     `/api/metals/wallets?metal=${metal}&id=${encodeURIComponent(id)}`,
@@ -174,6 +180,7 @@ export default function ClientWallets({
     setAddress("");
     setSavedMsg(null);
   }
+
   function handleSelectMetal(metal: Metal) {
     setCreateMetal(metal);
     setOpen(false);
@@ -254,10 +261,12 @@ export default function ClientWallets({
     setEditingId(id);
     setEditAddress(w.address);
   }
+
   function cancelEdit() {
     setEditingId(null);
     setEditAddress("");
   }
+
   async function saveEdit(id: string) {
     const w = wallets.find((x) => x.id === id);
     if (!w) return;
@@ -277,6 +286,7 @@ export default function ClientWallets({
       setEditBusy(false);
     }
   }
+
   async function deleteWallet(id: string) {
     const w = wallets.find((x) => x.id === id);
     if (!w) return;
@@ -300,6 +310,7 @@ export default function ClientWallets({
     setMetalEditAmount(String(w.amount));
     setMetalEditUnit(w.unit);
   }
+
   function cancelEditMetal() {
     setMetalEditingId(null);
     setMetalEditingType(null);
@@ -307,6 +318,7 @@ export default function ClientWallets({
     setMetalEditAmount("");
     setMetalEditUnit("g");
   }
+
   async function saveEditMetal() {
     if (!metalEditingId || !metalEditingType) return;
     const err = validateMetalInput(metalEditName, metalEditAmount, metalEditUnit);
@@ -330,6 +342,7 @@ export default function ClientWallets({
       setMetalEditBusy(false);
     }
   }
+  
   async function deleteMetal(metal: Metal, id: string) {
     if (!confirm("Delete this metals wallet?")) return;
     try {
@@ -377,7 +390,7 @@ export default function ClientWallets({
 
   /* ----------------------------- Render ----------------------------- */
   return (
-    <div className="h-full w-full p-4 md:p-6">
+    <div className="mx-auto h-full w-full max-w-6xl p-4 md:p-6">
       {/* Header */}
       <div className="mb-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -593,7 +606,7 @@ export default function ClientWallets({
                       <input
                         value={editAddress}
                         onChange={(e) => setEditAddress(e.target.value)}
-                        className="w-[55vw] sm:w-96 rounded-xl border bg-background px-3 py-2 text-sm outline-none ring-offset-background focus:border-transparent focus:ring-2 focus:ring-primary"
+                        className="min-w-0 flex-1 overflow-hidden rounded-xl border bg-background px-3 py-2 text-sm outline-none ring-offset-background focus:border-transparent focus:ring-2 focus:ring-primary sm:w-96 sm:flex-none"
                       />
                     ) : (
                       <div className="truncate max-w-[55vw] sm:max-w-none text-sm font-mono text-muted-foreground">
