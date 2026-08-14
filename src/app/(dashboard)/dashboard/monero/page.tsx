@@ -14,7 +14,7 @@ export default function MoneroPage() {
       <div className="space-y-6  mx-auto max-w-7xl">
         <div className="flex items-center justify-between">
           <h1 className="flex items-center gap-2 text-xl font-semibold">
-            <Image src={`/monero.png`} alt={`Monero`} width={20} height={20} />
+            <Image src={`/monero.svg`} alt={`Monero`} width={20} height={20} />
             <span>Monero</span>
           </h1>
         <div className="self-start sm:self-auto">
