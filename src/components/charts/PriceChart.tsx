@@ -121,20 +121,29 @@ function formatFullMoney(n: number, currency: string) {
   }).format(v);
 }
 
-function formatXAxis(ts: number, totalDays: number) {
+function formatXAxis(
+  ts: number,
+  totalDays: number
+) {
   const d = new Date(ts);
 
-  if (totalDays <= 3) {
+  if (!Number.isFinite(d.getTime())) {
+    return "";
+  }
+
+  if (totalDays <= 1) {
     return d.toLocaleTimeString(undefined, {
       hour: "numeric",
       minute: "2-digit",
     });
   }
 
-  if (totalDays <= 14) {
-    return d.toLocaleDateString(undefined, {
+  if (totalDays <= 3) {
+    return d.toLocaleString(undefined, {
       month: "short",
       day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
     });
   }
 
@@ -175,6 +184,205 @@ function getChange(data: ChartPoint[]) {
     change,
     percent,
   };
+}
+
+function generateLocalTimeTicks(
+  min: number,
+  max: number,
+  hours: number
+): number[] {
+  const ticks: number[] = [];
+
+  const start = new Date(min);
+
+  start.setMinutes(0, 0, 0);
+
+  const remainder = start.getHours() % hours;
+
+  if (remainder !== 0) {
+    start.setHours(
+      start.getHours() + (hours - remainder)
+    );
+  }
+
+  let cursor = start.getTime();
+
+  while (cursor <= max) {
+    if (cursor >= min) {
+      ticks.push(cursor);
+    }
+
+    const nextDate = new Date(cursor);
+
+    nextDate.setHours(
+      nextDate.getHours() + hours
+    );
+
+    const next = nextDate.getTime();
+
+    if (next <= cursor) {
+      break;
+    }
+
+    cursor = next;
+  }
+
+  return ticks;
+}
+
+function generateLocalDayTicks(
+  min: number,
+  max: number,
+  everyDays: number
+): number[] {
+  const ticks: number[] = [];
+
+  const start = new Date(min);
+
+  start.setHours(0, 0, 0, 0);
+
+  while (start.getTime() < min) {
+    start.setDate(
+      start.getDate() + everyDays
+    );
+  }
+
+  let cursor = start.getTime();
+
+  while (cursor <= max) {
+    if (cursor >= min) {
+      ticks.push(cursor);
+    }
+
+    const nextDate = new Date(cursor);
+
+    nextDate.setDate(
+      nextDate.getDate() + everyDays
+    );
+
+    const next = nextDate.getTime();
+
+    if (next <= cursor) {
+      break;
+    }
+
+    cursor = next;
+  }
+
+  return ticks;
+}
+
+function generateLocalMonthTicks(
+  min: number,
+  max: number
+): number[] {
+  const ticks: number[] = [];
+
+  const start = new Date(min);
+
+  start.setDate(1);
+  start.setHours(0, 0, 0, 0);
+
+  if (start.getTime() < min) {
+    start.setMonth(
+      start.getMonth() + 1
+    );
+  }
+
+  let cursor = start.getTime();
+
+  while (cursor <= max) {
+    if (cursor >= min) {
+      ticks.push(cursor);
+    }
+
+    const nextDate = new Date(cursor);
+
+    nextDate.setMonth(
+      nextDate.getMonth() + 1
+    );
+
+    const next = nextDate.getTime();
+
+    if (next <= cursor) {
+      break;
+    }
+
+    cursor = next;
+  }
+
+  return ticks;
+}
+
+function getXAxisTicks(
+  points: ChartPoint[],
+  totalDays: number
+): number[] {
+  if (!points.length) {
+    return [];
+  }
+
+  const min = points[0].t;
+  const max = points[points.length - 1].t;
+
+  if (
+    !Number.isFinite(min) ||
+    !Number.isFinite(max) ||
+    min >= max
+  ) {
+    return [min];
+  }
+
+  // 1D: every 4 hours.
+  if (totalDays <= 1) {
+    return generateLocalTimeTicks(
+      min,
+      max,
+      4
+    );
+  }
+
+  // 2D / 3D: every 6 hours.
+  if (totalDays <= 3) {
+    return generateLocalTimeTicks(
+      min,
+      max,
+      6
+    );
+  }
+
+  // 1W / 2W: every 2 days.
+  if (totalDays <= 14) {
+    return generateLocalDayTicks(
+      min,
+      max,
+      2
+    );
+  }
+
+  // 1M / 2M / 3M: every week.
+  if (totalDays <= 90) {
+    return generateLocalDayTicks(
+      min,
+      max,
+      7
+    );
+  }
+
+  // 6M: every 2 weeks.
+  if (totalDays <= 180) {
+    return generateLocalDayTicks(
+      min,
+      max,
+      14
+    );
+  }
+
+  // 1Y: monthly.
+  return generateLocalMonthTicks(
+    min,
+    max
+  );
 }
 
 function ChartTooltip({
@@ -281,6 +489,15 @@ export default function PriceChart({
   const chartColor = meta.color;
 
   const gradientId = `price-gradient-${coin}`;
+
+  const xAxisTicks = React.useMemo(
+  () =>
+    getXAxisTicks(
+      chartData,
+      selected.days
+    ),
+  [chartData, selected.days]
+);
 
   return (
     <div
@@ -553,12 +770,23 @@ export default function PriceChart({
                 <XAxis
                   type="number"
                   dataKey="t"
-                  domain={["dataMin", "dataMax"]}
+                  domain={[
+                    "dataMin",
+                    "dataMax",
+                  ]}
                   scale="time"
+                  ticks={xAxisTicks}
                   tickFormatter={(value) =>
-                    formatXAxis(Number(value), selected.days)
+                    formatXAxis(
+                      Number(value),
+                      selected.days
+                    )
                   }
-                  minTickGap={24}
+                  minTickGap={
+                    selected.days <= 3
+                      ? 36
+                      : 28
+                  }
                   tick={{
                     fill: "var(--muted-foreground)",
                     fontSize: 11,
@@ -566,6 +794,10 @@ export default function PriceChart({
                   axisLine={false}
                   tickLine={false}
                   tickMargin={10}
+                  padding={{
+                    left: 8,
+                    right: 8,
+                  }}
                 />
 
                 <YAxis
