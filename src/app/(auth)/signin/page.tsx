@@ -15,38 +15,55 @@ export default function SignInPage() {
   const [showPw, setShowPw] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
   const router = useRouter();
   const search = useSearchParams();
+
   const expired = search.get("expired") === "1";
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+
     setError(null);
     setLoading(true);
+
     try {
-      // 1) Hit your backend (through the local proxy route)
-      const r = await fetch("/api/auth/signin", {
+      const credential = await signInWithEmailAndPassword(
+        auth,
+        email.trim(),
+        password
+      );
+
+      const idToken = await credential.user.getIdToken(true);
+
+      const sessionResponse = await fetch("/api/auth/session", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          idToken,
+        }),
       });
 
-      const data = await r.json().catch(() => ({}));
-      if (!r.ok) {
-        throw new Error(data?.error || "Failed to sign in");
+      const sessionData = await sessionResponse.json().catch(() => ({}));
+
+      if (!sessionResponse.ok) {
+        await auth.currentUser?.getIdToken(true).catch(() => {});
+        throw new Error(
+          sessionData?.error || "Unable to establish server session"
+        );
       }
 
-      // 2) Also set Firebase client auth state so the app knows you're logged in
-      await signInWithEmailAndPassword(auth, email, password);
-
-      // 3) Route to dashboard
       router.replace("/dashboard");
     } catch (err: unknown) {
-        if (err instanceof Error) {
-          setError(err.message);
-        } else {
-          setError("Failed to sign in");
-        }
+      console.error("Sign-in error:", err);
+
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError("Failed to sign in");
+      }
     } finally {
       setLoading(false);
     }
@@ -56,7 +73,10 @@ export default function SignInPage() {
     <main className="flex min-h-screen w-full items-center justify-center bg-[var(--background)] text-[var(--foreground)]">
       <div className="w-full max-w-md rounded-2xl bg-[var(--card)] p-8 shadow-sm ring-1 ring-[var(--border)]">
         <div className="mb-6 text-center">
-          <h1 className="text-3xl font-bold text-[var(--foreground)]">Welcome back</h1>
+          <h1 className="text-3xl font-bold text-[var(--foreground)]">
+            Welcome back
+          </h1>
+
           <p className="mt-2 text-base text-[var(--muted-foreground)]">
             Sign in - value awaits.
           </p>
@@ -67,12 +87,14 @@ export default function SignInPage() {
             <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center">
               <Mail className="h-4 w-4 text-[var(--muted-foreground)]" />
             </span>
+
             <input
               id="email"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
+              autoComplete="email"
               className="w-full rounded-xl border border-[var(--border)] bg-[var(--background)] px-10 py-2.5 text-sm text-[var(--foreground)] shadow-sm outline-none placeholder:text-[var(--muted-foreground)] focus:border-[var(--primary)] focus:ring-4 focus:ring-[color:var(--ring)]/30"
               placeholder="you@example.com"
             />
@@ -82,46 +104,59 @@ export default function SignInPage() {
             <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center">
               <Lock className="h-4 w-4 text-[var(--muted-foreground)]" />
             </span>
+
             <input
               id="password"
               type={showPw ? "text" : "password"}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
+              autoComplete="current-password"
               className="w-full rounded-xl border border-[var(--border)] bg-[var(--background)] px-10 py-2.5 text-sm text-[var(--foreground)] shadow-sm outline-none placeholder:text-[var(--muted-foreground)] focus:border-[var(--primary)] focus:ring-4 focus:ring-[color:var(--ring)]/30"
               placeholder="••••••••"
             />
+
             <button
               type="button"
               onClick={() => setShowPw((s) => !s)}
               aria-label={showPw ? "Hide password" : "Show password"}
               className="absolute inset-y-0 right-3 inline-flex items-center text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
             >
-              {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              {showPw ? (
+                <EyeOff className="h-4 w-4" />
+              ) : (
+                <Eye className="h-4 w-4" />
+              )}
             </button>
           </div>
 
           {error && (
-            <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-800 ring-1 ring-red-200
-                           dark:bg-red-900/30 dark:text-red-200 dark:ring-red-900">
+            <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-800 ring-1 ring-red-200 dark:bg-red-900/30 dark:text-red-200 dark:ring-red-900">
               {error}
             </p>
           )}
-          {expired && (
-            <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-800 ring-1 ring-red-200
-                           dark:bg-red-900/30 dark:text-red-200 dark:ring-red-900">
+
+          {expired && !error && (
+            <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-800 ring-1 ring-red-200 dark:bg-red-900/30 dark:text-red-200 dark:ring-red-900">
               Your session expired. Please sign in again.
             </p>
           )}
-          
-          <Button type="submit" className="w-full rounded-xl py-2.5 text-sm border border-transparent dark:border-white overflow-visible">
+
+          <Button
+            type="submit"
+            disabled={loading}
+            className="w-full rounded-xl py-2.5 text-sm border border-transparent dark:border-white overflow-visible"
+          >
             {loading ? "Signing in…" : "Sign in"}
           </Button>
         </form>
 
         <p className="mt-6 text-center text-sm text-[var(--muted-foreground)]">
           Don’t have an account?{" "}
-          <Link href="/signup" className="font-medium underline hover:no-underline text-[var(--primary)]">
+          <Link
+            href="/signup"
+            className="font-medium underline hover:no-underline text-[var(--primary)]"
+          >
             Create one
           </Link>
         </p>
