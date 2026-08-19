@@ -6,6 +6,8 @@ import type {
   MarketCurrency,
 } from "@/stores/marketStore";
 
+import { authenticatedFetch } from "@/lib/auth/authenticatedFetch";
+
 type LoadResult = {
   cryptoSummary: CryptoSummary;
   metalsSummary: MetalsSummary;
@@ -14,15 +16,25 @@ type LoadResult = {
 async function fetchJson<T>(
   url: string
 ): Promise<T> {
-  const response = await fetch(url, {
-    credentials: "include",
-    cache: "no-store",
-  });
+  const response = await authenticatedFetch(url);
 
   if (!response.ok) {
-    throw new Error(
-      `Request failed: ${response.status} ${response.statusText}`
+    const body = await response
+      .json()
+      .catch(() => ({}));
+
+    const error = new Error(
+      body?.error ||
+        `Request failed: ${response.status} ${response.statusText}`
     );
+
+    /*
+     * Preserve backend auth information for later handling.
+     */
+    (error as any).status = response.status;
+    (error as any).code = body?.code;
+
+    throw error;
   }
 
   return response.json();
