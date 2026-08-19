@@ -499,7 +499,7 @@ export default function CryptoComparisonChart({
     `&quote=${quote}` +
     `&days=${selected.value}`;
 
-  const { data, isLoading } =
+  const { data, error, isLoading } =
     useSWR<any>(
       url,
       (u) =>
@@ -514,7 +514,7 @@ export default function CryptoComparisonChart({
 
     console.log("COMPARE URL:", url);
     console.log("COMPARE RESPONSE:", data);
-    console.log("COMPARE ERROR:", Error);
+    console.log("COMPARE ERROR:", error);
 
   const chartData: ChartPoint[] =
     Array.isArray(data?.prices)

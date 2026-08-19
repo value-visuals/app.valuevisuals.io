@@ -6,7 +6,7 @@ import {
   CurrencyToggle,
 } from "@/components/Currency";
 import { ChartNoAxesCombined } from "lucide-react";
-import CryptoComparisonChart from "@/components/charts/compareChart";
+import CryptoComparisonChart from "@/components/charts/CompareChart";
 import MarketProvider from "@/components/providers/MarketProvider";
 
 export default function DashboardPage() {
@@ -77,13 +77,6 @@ export default function DashboardPage() {
 
           <TopTiles />
         </section>
-
-        <div className="space-y-6">
-          <CryptoComparisonChart
-            initialBase="bitcoin"
-            initialQuote="ethereum"
-          />
-        </div>
 
         {/* Crypto */}
         <section
@@ -192,6 +185,12 @@ export default function DashboardPage() {
             />
           </div>
         </section>
+        <div className="space-y-6">
+          <CryptoComparisonChart
+            initialBase="bitcoin"
+            initialQuote="ethereum"
+          />
+        </div>
       </main>
       </MarketProvider>
     </CurrencyProvider>
