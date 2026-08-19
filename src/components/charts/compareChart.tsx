@@ -512,10 +512,6 @@ export default function CryptoComparisonChart({
       }
     );
 
-    console.log("COMPARE URL:", url);
-    console.log("COMPARE RESPONSE:", data);
-    console.log("COMPARE ERROR:", error);
-
   const chartData: ChartPoint[] =
     Array.isArray(data?.prices)
       ? data.prices
