@@ -52,14 +52,6 @@ const Ctx = createContext<AuthCtx>({
 const SESSION_WARNING_MS = 55 * 60 * 1000;
 const SESSION_TIMEOUT_MS = 60 * 60 * 1000;
 
-/*
- * If the Node API is on another origin, set:
- *
- * NEXT_PUBLIC_API_URL=https://your-api.example.com
- *
- * If the frontend proxies /auth/signout to Node, this can remain
- * empty.
- */
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || "";
 
@@ -87,12 +79,6 @@ export function AuthProvider({
       null
     );
 
-  /*
-   * Each timer cycle receives a unique ID.
-   *
-   * This prevents an old timer from logging the user out
-   * after the user has explicitly continued the session.
-   */
   const sessionCycleRef = useRef(0);
 
   /*
@@ -143,10 +129,6 @@ export function AuthProvider({
 
       setSessionWarning(false);
 
-      /*
-       * Show the session warning five minutes before the
-       * application session expires.
-       */
       warningTimerRef.current =
         setTimeout(() => {
           if (
@@ -163,10 +145,6 @@ export function AuthProvider({
           setSessionWarning(true);
         }, SESSION_WARNING_MS);
 
-      /*
-       * Automatically log the user out when the session
-       * reaches the expiration boundary.
-       */
       logoutTimerRef.current =
         setTimeout(() => {
           if (
@@ -197,13 +175,7 @@ export function AuthProvider({
         currentUser: User,
         forceRefresh = false
       ) => {
-        /*
-         * Firebase automatically refreshes the ID token when
-         * necessary.
-         *
-         * forceRefresh=true is used when the user explicitly
-         * chooses "Yes, continue".
-         */
+
         const idToken =
           await currentUser.getIdToken(
             forceRefresh
