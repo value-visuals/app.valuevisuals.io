@@ -444,7 +444,8 @@ export default function PriceChart({
 }) {
   const meta = COIN_META[coin];
 
-  const [range, setRange] = React.useState<string>("3d");
+  const [range, setRange] = React.useState<string>("1d");
+  const [justUpdated, setJustUpdated] = React.useState(false);
 
   const selected =
     RANGES.find((r) => r.value === range) ?? RANGES[0];
@@ -464,6 +465,13 @@ export default function PriceChart({
     {
       refreshInterval: 60_000,
       revalidateOnFocus: false,
+      onSuccess: () => {
+        setJustUpdated(true);
+
+        window.setTimeout(() => {
+          setJustUpdated(false);
+        }, 1500);
+      },
     }
   );
 
@@ -910,8 +918,20 @@ export default function PriceChart({
               : "No data"}
           </div>
 
-          <div className="text-[11px] text-muted-foreground">
-            Updated automatically
+          <div
+            className={`
+              text-[11px]
+              font-medium
+              transition-all
+              duration-700
+              ${
+                justUpdated
+                  ? "opacity-100 text-emerald-500"
+                  : "opacity-0 text-emerald-500"
+              }
+            `}
+          >
+            Updated
           </div>
         </div>
       </div>
