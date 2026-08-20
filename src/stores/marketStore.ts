@@ -1,4 +1,8 @@
+// src/stores/marketStore.ts
+
 import { create } from "zustand";
+
+import { loadMarketData } from "@/lib/market/loadMarketData";
 
 export type MarketCurrency = "usd" | "eur" | "gbp";
 
@@ -97,6 +101,8 @@ type MarketState = {
   lastSilverUpdate: number | null;
 
   setCurrency: (currency: MarketCurrency) => void;
+
+  fetchMarketData: (currency?: MarketCurrency) => Promise<void>;
 
   setCryptoSummary: (
     data: CryptoSummary | null
@@ -316,332 +322,418 @@ async function fetchMetalSummary(
 }
 
 export const useMarketStore =
-  create<MarketState>((set) => ({
-    currency: "usd",
+  create<MarketState>((set, get) => {
+    /*
+     * Incremented for every market-summary request.
+     *
+     * This prevents an older request from overwriting
+     * a newer currency selection if the user switches
+     * currencies quickly.
+     */
+    let marketRequestId = 0;
 
-    cryptoSummary: null,
-    metalsSummary: null,
+    return {
+      currency: "usd",
 
-    bitcoinStats: null,
-    ethereumStats: null,
-    moneroStats: null,
+      cryptoSummary: null,
+      metalsSummary: null,
 
-    goldSummary: null,
-    silverSummary: null,
+      bitcoinStats: null,
+      ethereumStats: null,
+      moneroStats: null,
 
-    cryptoLoading: false,
-    metalsLoading: false,
+      goldSummary: null,
+      silverSummary: null,
 
-    bitcoinLoading: false,
-    ethereumLoading: false,
-    moneroLoading: false,
+      cryptoLoading: false,
+      metalsLoading: false,
 
-    goldLoading: false,
-    silverLoading: false,
+      bitcoinLoading: false,
+      ethereumLoading: false,
+      moneroLoading: false,
 
-    cryptoError: null,
-    metalsError: null,
+      goldLoading: false,
+      silverLoading: false,
 
-    bitcoinError: null,
-    ethereumError: null,
-    moneroError: null,
+      cryptoError: null,
+      metalsError: null,
 
-    goldError: null,
-    silverError: null,
+      bitcoinError: null,
+      ethereumError: null,
+      moneroError: null,
 
-    lastCryptoUpdate: null,
-    lastMetalsUpdate: null,
+      goldError: null,
+      silverError: null,
 
-    lastBitcoinUpdate: null,
-    lastEthereumUpdate: null,
-    lastMoneroUpdate: null,
+      lastCryptoUpdate: null,
+      lastMetalsUpdate: null,
 
-    lastGoldUpdate: null,
-    lastSilverUpdate: null,
+      lastBitcoinUpdate: null,
+      lastEthereumUpdate: null,
+      lastMoneroUpdate: null,
 
-    setCurrency: (currency) =>
-      set({ currency }),
+      lastGoldUpdate: null,
+      lastSilverUpdate: null,
 
-    setCryptoSummary: (data) =>
-      set({
-        cryptoSummary: data,
-        lastCryptoUpdate: Date.now(),
-      }),
+      setCurrency: (currency) =>
+        set({
+          currency,
+        }),
 
-    setMetalsSummary: (data) =>
-      set({
-        metalsSummary: data,
-        lastMetalsUpdate: Date.now(),
-      }),
+      fetchMarketData: async (currency) => {
+        const requestedCurrency =
+          currency ?? get().currency;
 
-    setBitcoinStats: (data) =>
-      set({
-        bitcoinStats: data,
-        lastBitcoinUpdate: Date.now(),
-      }),
+        const requestId =
+          ++marketRequestId;
 
-    setEthereumStats: (data) =>
-      set({
-        ethereumStats: data,
-        lastEthereumUpdate: Date.now(),
-      }),
+        set({
+          currency: requestedCurrency,
+          cryptoLoading: true,
+          metalsLoading: true,
+          cryptoError: null,
+          metalsError: null,
+        });
 
-    setMoneroStats: (data) =>
-      set({
-        moneroStats: data,
-        lastMoneroUpdate: Date.now(),
-      }),
-
-    setCryptoLoading: (loading) =>
-      set({
-        cryptoLoading: loading,
-      }),
-
-    setMetalsLoading: (loading) =>
-      set({
-        metalsLoading: loading,
-      }),
-
-    setBitcoinLoading: (loading) =>
-      set({
-        bitcoinLoading: loading,
-      }),
-
-    setEthereumLoading: (loading) =>
-      set({
-        ethereumLoading: loading,
-      }),
-
-    setMoneroLoading: (loading) =>
-      set({
-        moneroLoading: loading,
-      }),
-
-    setGoldLoading: (loading) =>
-      set({
-        goldLoading: loading,
-      }),
-
-    setSilverLoading: (loading) =>
-      set({
-        silverLoading: loading,
-      }),
-
-    setCryptoError: (error) =>
-      set({
-        cryptoError: error,
-      }),
-
-    setMetalsError: (error) =>
-      set({
-        metalsError: error,
-      }),
-
-    setBitcoinError: (error) =>
-      set({
-        bitcoinError: error,
-      }),
-
-    setEthereumError: (error) =>
-      set({
-        ethereumError: error,
-      }),
-
-    setMoneroError: (error) =>
-      set({
-        moneroError: error,
-      }),
-
-    setGoldError: (error) =>
-      set({
-        goldError: error,
-      }),
-
-    setSilverError: (error) =>
-      set({
-        silverError: error,
-      }),
-
-    fetchBitcoinStats: async () => {
-      set({
-        bitcoinLoading: true,
-        bitcoinError: null,
-      });
-
-      try {
-        const data =
-          await fetchCoinStats(
-            "/api/crypto/bitcoin"
+        try {
+          const {
+            cryptoSummary,
+            metalsSummary,
+          } = await loadMarketData(
+            requestedCurrency
           );
 
+          /*
+           * Ignore this response if another
+           * market request started after it.
+           */
+          if (
+            requestId !== marketRequestId
+          ) {
+            return;
+          }
+
+          set({
+            cryptoSummary,
+            metalsSummary,
+
+            cryptoLoading: false,
+            metalsLoading: false,
+
+            cryptoError: null,
+            metalsError: null,
+
+            lastCryptoUpdate: Date.now(),
+            lastMetalsUpdate: Date.now(),
+          });
+        } catch (error) {
+          /*
+           * Don't let an older failed request
+           * overwrite the state of a newer request.
+           */
+          if (
+            requestId !== marketRequestId
+          ) {
+            return;
+          }
+
+          console.error(error);
+
+          const message =
+            error instanceof Error
+              ? error.message
+              : "Failed to load market data";
+
+          set({
+            cryptoLoading: false,
+            metalsLoading: false,
+            cryptoError: message,
+            metalsError: message,
+          });
+        }
+      },
+
+      setCryptoSummary: (data) =>
+        set({
+          cryptoSummary: data,
+          lastCryptoUpdate: Date.now(),
+        }),
+
+      setMetalsSummary: (data) =>
+        set({
+          metalsSummary: data,
+          lastMetalsUpdate: Date.now(),
+        }),
+
+      setBitcoinStats: (data) =>
         set({
           bitcoinStats: data,
-          bitcoinLoading: false,
-          bitcoinError: null,
           lastBitcoinUpdate: Date.now(),
-        });
-      } catch (error) {
-        console.error(error);
+        }),
 
-        set({
-          bitcoinLoading: false,
-          bitcoinError:
-            "Failed to load BTC data",
-        });
-      }
-    },
-
-    fetchEthereumStats: async () => {
-      set({
-        ethereumLoading: true,
-        ethereumError: null,
-      });
-
-      try {
-        const data =
-          await fetchCoinStats(
-            "/api/crypto/ethereum"
-          );
-
+      setEthereumStats: (data) =>
         set({
           ethereumStats: data,
-          ethereumLoading: false,
-          ethereumError: null,
           lastEthereumUpdate: Date.now(),
-        });
-      } catch (error) {
-        console.error(error);
+        }),
 
-        set({
-          ethereumLoading: false,
-          ethereumError:
-            "Failed to load ETH data",
-        });
-      }
-    },
-
-    fetchMoneroStats: async () => {
-      set({
-        moneroLoading: true,
-        moneroError: null,
-      });
-
-      try {
-        const data =
-          await fetchCoinStats(
-            "/api/crypto/monero"
-          );
-
+      setMoneroStats: (data) =>
         set({
           moneroStats: data,
-          moneroLoading: false,
-          moneroError: null,
           lastMoneroUpdate: Date.now(),
-        });
-      } catch (error) {
-        console.error(error);
+        }),
 
+      setCryptoLoading: (loading) =>
         set({
-          moneroLoading: false,
-          moneroError:
-            "Failed to load XMR data",
+          cryptoLoading: loading,
+        }),
+
+      setMetalsLoading: (loading) =>
+        set({
+          metalsLoading: loading,
+        }),
+
+      setBitcoinLoading: (loading) =>
+        set({
+          bitcoinLoading: loading,
+        }),
+
+      setEthereumLoading: (loading) =>
+        set({
+          ethereumLoading: loading,
+        }),
+
+      setMoneroLoading: (loading) =>
+        set({
+          moneroLoading: loading,
+        }),
+
+      setGoldLoading: (loading) =>
+        set({
+          goldLoading: loading,
+        }),
+
+      setSilverLoading: (loading) =>
+        set({
+          silverLoading: loading,
+        }),
+
+      setCryptoError: (error) =>
+        set({
+          cryptoError: error,
+        }),
+
+      setMetalsError: (error) =>
+        set({
+          metalsError: error,
+        }),
+
+      setBitcoinError: (error) =>
+        set({
+          bitcoinError: error,
+        }),
+
+      setEthereumError: (error) =>
+        set({
+          ethereumError: error,
+        }),
+
+      setMoneroError: (error) =>
+        set({
+          moneroError: error,
+        }),
+
+      setGoldError: (error) =>
+        set({
+          goldError: error,
+        }),
+
+      setSilverError: (error) =>
+        set({
+          silverError: error,
+        }),
+
+      fetchBitcoinStats: async () => {
+        set({
+          bitcoinLoading: true,
+          bitcoinError: null,
         });
-      }
-    },
 
-    fetchMetal: async (asset) => {
-      const isGold = asset === "gold";
+        try {
+          const data =
+            await fetchCoinStats(
+              "/api/crypto/bitcoin"
+            );
 
-      set(
-        isGold
-          ? {
-              goldLoading: true,
+          set({
+            bitcoinStats: data,
+            bitcoinLoading: false,
+            bitcoinError: null,
+            lastBitcoinUpdate: Date.now(),
+          });
+        } catch (error) {
+          console.error(error);
+
+          set({
+            bitcoinLoading: false,
+            bitcoinError:
+              "Failed to load BTC data",
+          });
+        }
+      },
+
+      fetchEthereumStats: async () => {
+        set({
+          ethereumLoading: true,
+          ethereumError: null,
+        });
+
+        try {
+          const data =
+            await fetchCoinStats(
+              "/api/crypto/ethereum"
+            );
+
+          set({
+            ethereumStats: data,
+            ethereumLoading: false,
+            ethereumError: null,
+            lastEthereumUpdate: Date.now(),
+          });
+        } catch (error) {
+          console.error(error);
+
+          set({
+            ethereumLoading: false,
+            ethereumError:
+              "Failed to load ETH data",
+          });
+        }
+      },
+
+      fetchMoneroStats: async () => {
+        set({
+          moneroLoading: true,
+          moneroError: null,
+        });
+
+        try {
+          const data =
+            await fetchCoinStats(
+              "/api/crypto/monero"
+            );
+
+          set({
+            moneroStats: data,
+            moneroLoading: false,
+            moneroError: null,
+            lastMoneroUpdate: Date.now(),
+          });
+        } catch (error) {
+          console.error(error);
+
+          set({
+            moneroLoading: false,
+            moneroError:
+              "Failed to load XMR data",
+          });
+        }
+      },
+
+      fetchMetal: async (asset) => {
+        const isGold = asset === "gold";
+
+        set(
+          isGold
+            ? {
+                goldLoading: true,
+                goldError: null,
+              }
+            : {
+                silverLoading: true,
+                silverError: null,
+              }
+        );
+
+        try {
+          const data =
+            await fetchMetalSummary(asset);
+
+          if (isGold) {
+            set({
+              goldSummary: data,
+              goldLoading: false,
               goldError: null,
-            }
-          : {
-              silverLoading: true,
+              lastGoldUpdate: Date.now(),
+            });
+          } else {
+            set({
+              silverSummary: data,
+              silverLoading: false,
               silverError: null,
-            }
-      );
+              lastSilverUpdate: Date.now(),
+            });
+          }
+        } catch (error) {
+          console.error(error);
 
-      try {
-        const data =
-          await fetchMetalSummary(asset);
-
-        if (isGold) {
-          set({
-            goldSummary: data,
-            goldLoading: false,
-            goldError: null,
-            lastGoldUpdate: Date.now(),
-          });
-        } else {
-          set({
-            silverSummary: data,
-            silverLoading: false,
-            silverError: null,
-            lastSilverUpdate: Date.now(),
-          });
+          if (isGold) {
+            set({
+              goldLoading: false,
+              goldError:
+                "Failed to load gold data",
+            });
+          } else {
+            set({
+              silverLoading: false,
+              silverError:
+                "Failed to load silver data",
+            });
+          }
         }
-      } catch (error) {
-        console.error(error);
+      },
 
-        if (isGold) {
-          set({
-            goldLoading: false,
-            goldError:
-              "Failed to load gold data",
-          });
-        } else {
-          set({
-            silverLoading: false,
-            silverError:
-              "Failed to load silver data",
-          });
-        }
-      }
-    },
+      resetMarket: () =>
+        set({
+          cryptoSummary: null,
+          metalsSummary: null,
 
-    resetMarket: () =>
-      set({
-        cryptoSummary: null,
-        metalsSummary: null,
+          bitcoinStats: null,
+          ethereumStats: null,
+          moneroStats: null,
 
-        bitcoinStats: null,
-        ethereumStats: null,
-        moneroStats: null,
+          goldSummary: null,
+          silverSummary: null,
 
-        goldSummary: null,
-        silverSummary: null,
+          cryptoLoading: false,
+          metalsLoading: false,
 
-        cryptoLoading: false,
-        metalsLoading: false,
+          bitcoinLoading: false,
+          ethereumLoading: false,
+          moneroLoading: false,
 
-        bitcoinLoading: false,
-        ethereumLoading: false,
-        moneroLoading: false,
+          goldLoading: false,
+          silverLoading: false,
 
-        goldLoading: false,
-        silverLoading: false,
+          cryptoError: null,
+          metalsError: null,
 
-        cryptoError: null,
-        metalsError: null,
+          bitcoinError: null,
+          ethereumError: null,
+          moneroError: null,
 
-        bitcoinError: null,
-        ethereumError: null,
-        moneroError: null,
+          goldError: null,
+          silverError: null,
 
-        goldError: null,
-        silverError: null,
+          lastCryptoUpdate: null,
+          lastMetalsUpdate: null,
 
-        lastCryptoUpdate: null,
-        lastMetalsUpdate: null,
+          lastBitcoinUpdate: null,
+          lastEthereumUpdate: null,
+          lastMoneroUpdate: null,
 
-        lastBitcoinUpdate: null,
-        lastEthereumUpdate: null,
-        lastMoneroUpdate: null,
-
-        lastGoldUpdate: null,
-        lastSilverUpdate: null,
-      }),
-  }));
+          lastGoldUpdate: null,
+          lastSilverUpdate: null,
+        }),
+    };
+});

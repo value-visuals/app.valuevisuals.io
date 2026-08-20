@@ -1,9 +1,10 @@
-// src/components/TopTiles.tsx
+// src/components/toptiles/Toptiles.tsx
 
 "use client";
 
 import Image from "next/image";
 import React, {
+  useEffect,
   useState,
 } from "react";
 
@@ -23,6 +24,15 @@ const coinColors: Record<
   gold: "#D4AF37",
 };
 
+type TileProps = {
+  label: React.ReactNode;
+  value?: string;
+  sub?: string;
+  color?: string;
+  onClick?: () => void;
+  title?: string;
+};
+
 function Tile({
   label,
   value,
@@ -30,14 +40,7 @@ function Tile({
   color,
   onClick,
   title,
-}: {
-  label: React.ReactNode;
-  value?: string;
-  sub?: string;
-  color?: string;
-  onClick?: () => void;
-  title?: string;
-}) {
+}: TileProps) {
   const ValueTag =
     onClick ? "button" : "p";
 
@@ -85,9 +88,7 @@ function getGoldPrice(
     return undefined;
   }
 
-  if (
-    Array.isArray(data.items)
-  ) {
+  if (Array.isArray(data.items)) {
     const item =
       data.items.find(
         (x) =>
@@ -96,8 +97,7 @@ function getGoldPrice(
           ).startsWith("XAU/") ||
           String(
             x?.name ?? ""
-          ).toLowerCase() ===
-            "gold"
+          ).toLowerCase() === "gold"
       );
 
     const price =
@@ -109,9 +109,7 @@ function getGoldPrice(
       return price;
     }
 
-    if (
-      price != null
-    ) {
+    if (price != null) {
       return Number(price);
     }
   }
@@ -130,9 +128,7 @@ function getGoldPrice(
       return price;
     }
 
-    if (
-      price != null
-    ) {
+    if (price != null) {
       return Number(price);
     }
   }
@@ -168,6 +164,12 @@ export default function TopTiles() {
         state.metalsError
     );
 
+  const fetchMarketData =
+    useMarketStore(
+      (state) =>
+        state.fetchMarketData
+    );
+
   const [
     showFullCap,
     setShowFullCap,
@@ -175,6 +177,23 @@ export default function TopTiles() {
 
   const curKey =
     currency.toLowerCase();
+
+  /*
+   * Currency remains owned by the existing
+   * Currency provider. Whenever it changes,
+   * synchronize the market data in Zustand.
+   */
+  useEffect(() => {
+    void fetchMarketData(
+      curKey as
+        | "usd"
+        | "eur"
+        | "gbp"
+    );
+  }, [
+    curKey,
+    fetchMarketData,
+  ]);
 
   const fmt = (
     n?: number
@@ -203,6 +222,10 @@ export default function TopTiles() {
         ).format(n)
       : undefined;
 
+  /*
+   * Truncating compact currency formatter
+   * (floors to 1 decimal).
+   */
   function compactTruncCurrency(
     n?: number
   ): string | undefined {
@@ -315,12 +338,12 @@ export default function TopTiles() {
           <span className="flex items-center gap-2">
             <Image
               src="/bitcoin.svg"
-              alt="Bitcoin (BTC)"
+              alt="Bitcoin"
               width={20}
               height={20}
             />
 
-            Bitcoin (BTC)
+            Bitcoin
           </span>
         }
         value={fmt(
@@ -341,12 +364,12 @@ export default function TopTiles() {
           <span className="flex items-center gap-2">
             <Image
               src="/ethereum.png"
-              alt="Ethereum (ETH)"
+              alt="Ethereum"
               width={20}
               height={20}
             />
 
-            Ethereum (ETH)
+            Ethereum
           </span>
         }
         value={fmt(
@@ -363,7 +386,7 @@ export default function TopTiles() {
       />
 
       <Tile
-        label="Gold (XAU)"
+        label="Gold"
         value={fmt(
           goldPrice
         )}
