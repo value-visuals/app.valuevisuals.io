@@ -1,5 +1,5 @@
 // src/app/(dashboard)/dashboard/monero/page.tsx
-import MoneroTopTile from "@/components/toptiles/MoneroTopTile";
+import CryptoTopTiles from "@/components/toptiles/CryptoTopTiles";
 import PriceChart from "@/components/charts/PriceChart";
 import {
   CurrencyProvider,
@@ -22,7 +22,7 @@ export default function MoneroPage() {
         </div>
         </div>
 
-        <MoneroTopTile />
+        <CryptoTopTiles asset="monero" />
 
           <div className="grid grid-cols-1 gap-6">
             <PriceChart coin="monero" />

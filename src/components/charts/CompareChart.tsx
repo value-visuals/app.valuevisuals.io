@@ -3,7 +3,6 @@
 import React from "react";
 import useSWR from "swr";
 import Image from "next/image";
-import { useCurrency } from "@/components/Currency";
 
 import {
   ComposedChart,
@@ -14,23 +13,26 @@ import {
   Tooltip,
   ResponsiveContainer,
   CartesianGrid,
-  ReferenceLine,
 } from "recharts";
+
+type Coin =
+  | "bitcoin"
+  | "ethereum"
+  | "monero";
 
 type ChartPoint = {
   t: number;
   price: number;
 };
 
-const COIN_META: Record<
-  "bitcoin" | "ethereum" | "monero",
-  {
-    name: string;
-    color: string;
-    logo: string;
-    symbol: "BTC" | "ETH" | "XMR";
-  }
-> = {
+type CoinMeta = {
+  name: string;
+  color: string;
+  logo: string;
+  symbol: string;
+};
+
+const COIN_META: Record<Coin, CoinMeta> = {
   bitcoin: {
     name: "Bitcoin",
     color: "#F7931A",
@@ -54,71 +56,93 @@ const COIN_META: Record<
 };
 
 const RANGES = [
-  { label: "1D", value: "1d", days: 1 },
-  { label: "2D", value: "2d", days: 2 },
-  { label: "3D", value: "3d", days: 3 },
-  { label: "1W", value: "7d", days: 7 },
-  { label: "2W", value: "14d", days: 14 },
-  { label: "1M", value: "30d", days: 30 },
-  { label: "2M", value: "60d", days: 60 },
-  { label: "3M", value: "90d", days: 90 },
-  { label: "6M", value: "180d", days: 180 },
-  { label: "1Y", value: "365d", days: 365 },
+  { label: "1D", value: "1", days: 1 },
+  { label: "2D", value: "2", days: 2 },
+  { label: "3D", value: "3", days: 3 },
+  { label: "1W", value: "7", days: 7 },
+  { label: "2W", value: "14", days: 14 },
+  { label: "1M", value: "30", days: 30 },
+  { label: "2M", value: "60", days: 60 },
+  { label: "3M", value: "90", days: 90 },
+  { label: "6M", value: "180", days: 180 },
+  { label: "1Y", value: "365", days: 365 },
 ];
 
-function toChartData(payload: any): ChartPoint[] {
-  if (Array.isArray(payload?.prices)) {
-    return payload.prices.map((p: [number, number]) => ({
-      t: Number(p[0]),
-      price: Number(p[1]),
-    }));
+function formatRatio(value: number) {
+  if (!Number.isFinite(value)) {
+    return "—";
   }
 
-  const c = payload?.candles;
-
-  if (Array.isArray(c) && c.length > 0) {
-    if (typeof c[0] === "object" && !Array.isArray(c[0])) {
-      return c.map((k: any) => ({
-        t: Number(k.time ?? k.t ?? k.timestamp ?? k[0]),
-        price: Number(
-          k.close ?? k.c ?? k[4] ?? k.price ?? k.o ?? 0
-        ),
-      }));
-    }
-
-    return c.map((k: any[]) => ({
-      t: Number(k[0]),
-      price: Number(k[4] ?? k[1] ?? 0),
-    }));
+  if (value >= 100) {
+    return value.toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
   }
 
-  return [];
+  if (value >= 10) {
+    return value.toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 4,
+    });
+  }
+
+  if (value >= 1) {
+    return value.toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 5,
+    });
+  }
+
+  if (value >= 0.1) {
+    return value.toLocaleString(undefined, {
+      minimumFractionDigits: 3,
+      maximumFractionDigits: 6,
+    });
+  }
+
+  return value.toLocaleString(undefined, {
+    maximumSignificantDigits: 7,
+  });
 }
 
-function formatMoney(n: number, currency: string) {
-  const v = Number(n);
+function formatPercent(value: number) {
+  if (!Number.isFinite(value)) {
+    return "0.00%";
+  }
 
-  if (!Number.isFinite(v)) return "";
-
-  return new Intl.NumberFormat(undefined, {
-    style: "currency",
-    currency,
-    notation: "compact",
-    maximumFractionDigits: 2,
-  }).format(v);
+  return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
 }
 
-function formatFullMoney(n: number, currency: string) {
-  const v = Number(n);
+function getChange(data: ChartPoint[]) {
+  if (data.length < 2) {
+    return {
+      change: 0,
+      percent: 0,
+    };
+  }
 
-  if (!Number.isFinite(v)) return "";
+  const first = data[0].price;
+  const last = data[data.length - 1].price;
 
-  return new Intl.NumberFormat(undefined, {
-    style: "currency",
-    currency,
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(v);
+  if (
+    !Number.isFinite(first) ||
+    !Number.isFinite(last) ||
+    first === 0
+  ) {
+    return {
+      change: 0,
+      percent: 0,
+    };
+  }
+
+  const change = last - first;
+  const percent = (change / first) * 100;
+
+  return {
+    change,
+    percent,
+  };
 }
 
 function formatXAxis(
@@ -153,39 +177,6 @@ function formatXAxis(
   });
 }
 
-function formatPercent(value: number) {
-  if (!Number.isFinite(value)) return "0.00%";
-
-  return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
-}
-
-function getChange(data: ChartPoint[]) {
-  if (data.length < 2) {
-    return {
-      change: 0,
-      percent: 0,
-    };
-  }
-
-  const first = data[0].price;
-  const last = data[data.length - 1].price;
-
-  if (!Number.isFinite(first) || !Number.isFinite(last) || first === 0) {
-    return {
-      change: 0,
-      percent: 0,
-    };
-  }
-
-  const change = last - first;
-  const percent = (change / first) * 100;
-
-  return {
-    change,
-    percent,
-  };
-}
-
 function generateLocalTimeTicks(
   min: number,
   max: number,
@@ -197,7 +188,8 @@ function generateLocalTimeTicks(
 
   start.setMinutes(0, 0, 0);
 
-  const remainder = start.getHours() % hours;
+  const remainder =
+    start.getHours() % hours;
 
   if (remainder !== 0) {
     start.setHours(
@@ -333,7 +325,6 @@ function getXAxisTicks(
     return [min];
   }
 
-  // 1D: every 4 hours.
   if (totalDays <= 1) {
     return generateLocalTimeTicks(
       min,
@@ -342,7 +333,6 @@ function getXAxisTicks(
     );
   }
 
-  // 2D / 3D: every 6 hours.
   if (totalDays <= 3) {
     return generateLocalTimeTicks(
       min,
@@ -351,7 +341,6 @@ function getXAxisTicks(
     );
   }
 
-  // 1W / 2W: every 2 days.
   if (totalDays <= 14) {
     return generateLocalDayTicks(
       min,
@@ -360,7 +349,6 @@ function getXAxisTicks(
     );
   }
 
-  // 1M / 2M / 3M: every week.
   if (totalDays <= 90) {
     return generateLocalDayTicks(
       min,
@@ -369,7 +357,6 @@ function getXAxisTicks(
     );
   }
 
-  // 6M: every 2 weeks.
   if (totalDays <= 180) {
     return generateLocalDayTicks(
       min,
@@ -378,36 +365,59 @@ function getXAxisTicks(
     );
   }
 
-  // 1Y: monthly.
   return generateLocalMonthTicks(
     min,
     max
   );
 }
 
-function ChartTooltip({
+function formatPairValue(
+  value: number,
+  base: Coin,
+  quote: Coin
+) {
+  const baseSymbol =
+    COIN_META[base].symbol;
+
+  const quoteSymbol =
+    COIN_META[quote].symbol;
+
+  return `${formatRatio(value)} ${quoteSymbol}`;
+}
+
+function ComparisonTooltip({
   active,
   payload,
   label,
-  currency,
+  base,
+  quote,
 }: {
   active?: boolean;
   payload?: any[];
   label?: number;
-  currency: string;
+  base: Coin;
+  quote: Coin;
 }) {
-  if (!active || !payload?.length) return null;
+  if (!active || !payload?.length) {
+    return null;
+  }
 
-  const price = Number(payload[0]?.value);
+  const price = Number(
+    payload[0]?.value
+  );
 
-  if (!Number.isFinite(price)) return null;
+  if (!Number.isFinite(price)) {
+    return null;
+  }
 
-  const date = new Date(Number(label));
+  const date = new Date(
+    Number(label)
+  );
 
   return (
     <div
       className="
-        min-w-[150px]
+        min-w-[170px]
         rounded-xl
         border
         border-border/70
@@ -429,83 +439,140 @@ function ChartTooltip({
       </div>
 
       <div className="text-base font-semibold tracking-tight text-popover-foreground">
-        {formatFullMoney(price, currency)}
+        {formatPairValue(
+          price,
+          base,
+          quote
+        )}
+      </div>
+
+      <div className="mt-0.5 text-[10px] text-muted-foreground">
+        {COIN_META[base].symbol}/
+        {COIN_META[quote].symbol}
       </div>
     </div>
   );
 }
 
-export default function PriceChart({
-  coin,
+export default function CryptoComparisonChart({
+  initialBase = "ethereum",
+  initialQuote = "bitcoin",
   className = "",
 }: {
-  coin: "bitcoin" | "ethereum" | "monero";
+  initialBase?: Coin;
+  initialQuote?: Coin;
   className?: string;
 }) {
-  const meta = COIN_META[coin];
+  const [base, setBase] =
+    React.useState<Coin>(
+      initialBase
+    );
 
-  const [range, setRange] = React.useState<string>("1d");
-  const [justUpdated, setJustUpdated] = React.useState(false);
+  const [quote, setQuote] =
+    React.useState<Coin>(
+      initialQuote
+    );
+
+  const [range, setRange] =
+    React.useState("3");
 
   const selected =
-    RANGES.find((r) => r.value === range) ?? RANGES[0];
+    RANGES.find(
+      (r) => r.value === range
+    ) ?? RANGES[0];
 
-  const { currency } = useCurrency();
+  const [isSwapping, setIsSwapping] =
+    React.useState(false);
 
-  const [hoveredPrice, setHoveredPrice] =
-    React.useState<number | null>(null);
+  const baseMeta =
+    COIN_META[base];
 
-  const url = `/api/crypto/chart?symbol=${meta.symbol}&range=${encodeURIComponent(
-    range
-  )}&interval=auto&currency=${currency}&coin=${coin}&days=${selected.days}`;
+  const quoteMeta =
+    COIN_META[quote];
 
-  const { data, isLoading } = useSWR<any>(
-    url,
-    (u) => fetch(u).then((r) => r.json()),
-    {
-      refreshInterval: 60_000,
-      revalidateOnFocus: false,
-      onSuccess: () => {
-        setJustUpdated(true);
+  const pairColor =
+    baseMeta.color;
 
-        window.setTimeout(() => {
-          setJustUpdated(false);
-        }, 1500);
-      },
-    }
-  );
+  const url =
+    `/api/crypto/compare` +
+    `?base=${base}` +
+    `&quote=${quote}` +
+    `&days=${selected.value}`;
 
-  const rawPoints = toChartData(data);
+  const { data, error, isLoading } =
+    useSWR<any>(
+      url,
+      (u) =>
+        fetch(u).then((r) =>
+          r.json()
+        ),
+      {
+        refreshInterval: 60_000,
+        revalidateOnFocus: false,
+      }
+    );
 
-  const chartData = rawPoints
-    .filter(
-      (p) =>
-        Number.isFinite(p.t) &&
-        Number.isFinite(p.price)
-    )
-    .sort((a, b) => a.t - b.t);
+  const chartData: ChartPoint[] =
+    Array.isArray(data?.prices)
+      ? data.prices
+          .map((p: any) => ({
+            t: Number(p.t),
+            price: Number(p.price),
+          }))
+          .filter(
+            (p: ChartPoint) =>
+              Number.isFinite(p.t) &&
+              Number.isFinite(p.price) &&
+              p.price > 0
+          )
+          .sort(
+            (a: ChartPoint, b: ChartPoint) =>
+              a.t - b.t
+          )
+      : [];
 
   const latestPrice =
     chartData.length > 0
-      ? chartData[chartData.length - 1].price
+      ? chartData[
+          chartData.length - 1
+        ].price
       : null;
 
-  const { change, percent } = getChange(chartData);
+  const {
+    change,
+    percent,
+  } = getChange(chartData);
 
-  const isPositive = percent >= 0;
+  const isPositive =
+    percent >= 0;
 
-  const chartColor = meta.color;
+  const xAxisTicks =
+    React.useMemo(
+      () =>
+        getXAxisTicks(
+          chartData,
+          selected.days
+        ),
+      [
+        chartData,
+        selected.days,
+      ]
+    );
 
-  const gradientId = `price-gradient-${coin}`;
+  const swapPair = () => {
+    if (isSwapping) {
+      return;
+    }
 
-  const xAxisTicks = React.useMemo(
-  () =>
-    getXAxisTicks(
-      chartData,
-      selected.days
-    ),
-  [chartData, selected.days]
-);
+    setIsSwapping(true);
+
+    setBase(quote);
+    setQuote(base);
+
+    window.setTimeout(() => {
+      setIsSwapping(false);
+    }, 150);
+  };
 
   return (
     <div
@@ -525,25 +592,27 @@ export default function PriceChart({
         ${className}
       `}
     >
-      {/* Very subtle top accent */}
       <div
         className="absolute inset-x-0 top-0 h-px opacity-70"
         style={{
           background: `linear-gradient(
             90deg,
             transparent,
-            ${chartColor},
+            ${pairColor},
             transparent
           )`,
         }}
       />
 
       <div className="p-5">
+
         {/* Header */}
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
-            {/* Coin identity */}
+
+            {/* Pair identity */}
             <div className="flex items-center gap-2.5">
+
               <div
                 className="
                   flex
@@ -558,8 +627,8 @@ export default function PriceChart({
                 "
               >
                 <Image
-                  src={meta.logo}
-                  alt={meta.name}
+                  src={baseMeta.logo}
+                  alt={baseMeta.name}
                   width={20}
                   height={20}
                   className="size-5 object-contain"
@@ -568,20 +637,45 @@ export default function PriceChart({
 
               <div className="flex items-center gap-2">
                 <h3 className="text-sm font-semibold tracking-tight">
-                  {meta.name}
+                    {baseMeta.symbol} priced in {quoteMeta.symbol}
                 </h3>
 
+                <div
+                  className="
+                    flex
+                    size-6
+                    items-center
+                    justify-center
+                    rounded-full
+                    bg-muted/60
+                    ring-1
+                    ring-border/60
+                  "
+                >
+                  <Image
+                    src={quoteMeta.logo}
+                    alt={quoteMeta.name}
+                    width={16}
+                    height={16}
+                    className="size-4 object-contain"
+                  />
+                </div>
+
                 <span className="text-xs font-medium text-muted-foreground">
-                  {meta.symbol}
+                  {quoteMeta.symbol}
                 </span>
               </div>
             </div>
 
-            {/* Price */}
+            {/* Current ratio */}
             <div className="mt-3 flex flex-wrap items-baseline gap-x-3 gap-y-1">
               <span className="text-2xl font-bold tracking-tight sm:text-3xl">
                 {latestPrice !== null
-                  ? formatFullMoney(latestPrice, currency)
+                  ? formatPairValue(
+                      latestPrice,
+                      base,
+                      quote
+                    )
                   : "—"}
               </span>
 
@@ -604,13 +698,21 @@ export default function PriceChart({
 
             {chartData.length > 1 && (
               <div className="mt-1 text-xs text-muted-foreground">
-                {isPositive ? "+" : ""}
-                {formatFullMoney(change, currency)} over {selected.label}
+                {isPositive
+                  ? "+"
+                  : ""}
+                {formatPairValue(
+                  change,
+                  base,
+                  quote
+                )}{" "}
+                over{" "}
+                {selected.label}
               </div>
             )}
           </div>
 
-          {/* Live indicator */}
+          {/* Live */}
           <div
             className="
               flex
@@ -633,11 +735,18 @@ export default function PriceChart({
             <span className="relative flex size-1.5">
               <span
                 className="absolute inline-flex size-full animate-ping rounded-full opacity-60"
-                style={{ backgroundColor: chartColor }}
+                style={{
+                  backgroundColor:
+                    pairColor,
+                }}
               />
+
               <span
                 className="relative inline-flex size-1.5 rounded-full"
-                style={{ backgroundColor: chartColor }}
+                style={{
+                  backgroundColor:
+                    pairColor,
+                }}
               />
             </span>
 
@@ -645,11 +754,141 @@ export default function PriceChart({
           </div>
         </div>
 
-        {/* Timeframe toolbar */}
-        <div className="mt-5 flex items-center justify-between gap-3">
+        {/* Pair controls */}
+        <div className="mt-5 flex flex-wrap items-center gap-2">
+
+          <div
+            className="
+              flex
+              items-center
+              gap-1
+              rounded-lg
+              bg-muted/50
+              p-1
+            "
+          >
+            <select
+              value={base}
+              onChange={(e) =>
+                setBase(
+                  e.target.value as Coin
+                )
+              }
+              className="
+                h-7
+                rounded-md
+                border-0
+                bg-background
+                px-2
+                text-[11px]
+                font-semibold
+                text-foreground
+                shadow-sm
+                outline-none
+                ring-1
+                ring-border/60
+              "
+            >
+              {(
+                Object.keys(
+                  COIN_META
+                ) as Coin[]
+              ).map((coin) => (
+                <option
+                  key={coin}
+                  value={coin}
+                  disabled={
+                    coin === quote
+                  }
+                >
+                  {COIN_META[coin].symbol}
+                  {" — "}
+                  {COIN_META[coin].name}
+                </option>
+              ))}
+            </select>
+
+            <span className="px-1 text-xs font-semibold text-muted-foreground">
+              /
+            </span>
+
+            <select
+              value={quote}
+              onChange={(e) =>
+                setQuote(
+                  e.target.value as Coin
+                )
+              }
+              className="
+                h-7
+                rounded-md
+                border-0
+                bg-background
+                px-2
+                text-[11px]
+                font-semibold
+                text-foreground
+                shadow-sm
+                outline-none
+                ring-1
+                ring-border/60
+              "
+            >
+              {(
+                Object.keys(
+                  COIN_META
+                ) as Coin[]
+              ).map((coin) => (
+                <option
+                  key={coin}
+                  value={coin}
+                  disabled={
+                    coin === base
+                  }
+                >
+                  {COIN_META[coin].symbol}
+                  {" — "}
+                  {COIN_META[coin].name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <button
+            type="button"
+            onClick={swapPair}
+            disabled={isSwapping}
+            aria-label="Swap comparison pair"
+            title="Swap pair"
+            className="
+              flex
+              size-7
+              items-center
+              justify-center
+              rounded-md
+              border
+              border-border/60
+              bg-muted/40
+              text-muted-foreground
+              transition-colors
+              hover:bg-muted
+              hover:text-foreground
+              focus:outline-none
+              focus-visible:ring-2
+              focus-visible:ring-ring
+            "
+          >
+            ⇄
+          </button>
+
+        </div>
+
+        {/* Timeframe */}
+        <div className="mt-3 flex items-center justify-between gap-3">
+
           <div
             role="tablist"
-            aria-label={`${meta.name} chart range`}
+            aria-label="Comparison chart range"
             className="
               flex
               max-w-full
@@ -661,7 +900,8 @@ export default function PriceChart({
             "
           >
             {RANGES.map((r) => {
-              const active = r.value === range;
+              const active =
+                r.value === range;
 
               return (
                 <button
@@ -669,10 +909,11 @@ export default function PriceChart({
                   type="button"
                   role="tab"
                   aria-selected={active}
-                  onClick={() => {
-                    setRange(r.value);
-                    setHoveredPrice(null);
-                  }}
+                  onClick={() =>
+                    setRange(
+                      r.value
+                    )
+                  }
                   className={`
                     h-7
                     shrink-0
@@ -716,7 +957,8 @@ export default function PriceChart({
             sm:w-full
           "
         >
-          {isLoading && chartData.length === 0 ? (
+          {isLoading &&
+          chartData.length === 0 ? (
             <div className="flex h-full items-center justify-center">
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <span
@@ -729,15 +971,19 @@ export default function PriceChart({
                     border-t-muted-foreground
                   "
                 />
-                Loading chart…
+
+                Loading comparison…
               </div>
             </div>
           ) : chartData.length === 0 ? (
             <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-              No chart data available.
+              No comparison data available.
             </div>
           ) : (
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer
+              width="100%"
+              height="100%"
+            >
               <ComposedChart
                 data={chartData}
                 margin={{
@@ -747,10 +993,9 @@ export default function PriceChart({
                   left: 4,
                 }}
               >
-                {/* Original coin-colored gradient */}
                 <defs>
                   <linearGradient
-                    id={`colorGradient-${coin}`}
+                    id="comparison-gradient"
                     x1="0"
                     y1="0"
                     x2="0"
@@ -758,18 +1003,22 @@ export default function PriceChart({
                   >
                     <stop
                       offset="0%"
-                      stopColor={meta.color}
+                      stopColor={
+                        pairColor
+                      }
                       stopOpacity={0.4}
                     />
+
                     <stop
                       offset="100%"
-                      stopColor={meta.color}
+                      stopColor={
+                        pairColor
+                      }
                       stopOpacity={0}
                     />
                   </linearGradient>
                 </defs>
 
-                {/* Original grid */}
                 <CartesianGrid
                   stroke="var(--border)"
                   strokeDasharray="3 3"
@@ -809,12 +1058,17 @@ export default function PriceChart({
                 />
 
                 <YAxis
-                  domain={["auto", "auto"]}
-                  tickFormatter={(v) =>
-                    formatMoney(Number(v), currency)
+                  domain={[
+                    "auto",
+                    "auto",
+                  ]}
+                  tickFormatter={(value) =>
+                    formatRatio(
+                      Number(value)
+                    )
                   }
                   orientation="right"
-                  width={58}
+                  width={65}
                   tick={{
                     fill: "var(--muted-foreground)",
                     fontSize: 11,
@@ -826,81 +1080,41 @@ export default function PriceChart({
 
                 <Tooltip
                   cursor={{
-                    stroke: meta.color,
+                    stroke: pairColor,
                     strokeWidth: 1,
                     strokeDasharray: "4 4",
                     strokeOpacity: 0.55,
                   }}
-                  formatter={(v: number) =>
-                    formatMoney(v, currency)
+                  content={
+                    <ComparisonTooltip
+                      base={base}
+                      quote={quote}
+                    />
                   }
-                  labelFormatter={(_, payloadArg: unknown) => {
-                    const payload = payloadArg as ReadonlyArray<any>;
-
-                    const ts = payload?.[0]?.payload?.t as
-                      | number
-                      | undefined;
-
-                    if (!ts) return "";
-
-                    const d = new Date(ts);
-
-                    return selected.days <= 3
-                      ? d.toLocaleString(undefined, {
-                          month: "short",
-                          day: "numeric",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })
-                      : d.toLocaleString(undefined, {
-                          month: "short",
-                          day: "numeric",
-                          year:
-                            selected.days >= 30
-                              ? "numeric"
-                              : undefined,
-                        });
-                  }}
-                  contentStyle={{
-                    background: "var(--popover)",
-                    border: "1px solid var(--border)",
-                    color: "var(--popover-foreground)",
-                    borderRadius: "0.75rem",
-                    boxShadow:
-                      "0 8px 24px rgba(0, 0, 0, 0.12)",
-                  }}
-                  labelStyle={{
-                    color: "var(--muted-foreground)",
-                  }}
-                  itemStyle={{
-                    color: meta.color,
-                    fontWeight: 600,
-                  }}
                 />
 
-                {/* Original gradient area */}
                 <Area
                   type="monotone"
                   dataKey="price"
                   stroke="none"
                   fillOpacity={1}
-                  fill={`url(#colorGradient-${coin})`}
+                  fill="url(#comparison-gradient)"
                   isAnimationActive={!isLoading}
                   animationDuration={500}
                 />
 
-                {/* Slightly more polished price line */}
                 <Line
                   type="monotone"
                   dataKey="price"
                   dot={false}
                   activeDot={{
                     r: 5,
-                    fill: meta.color,
-                    stroke: "var(--background)",
+                    fill: pairColor,
+                    stroke:
+                      "var(--background)",
                     strokeWidth: 2,
                   }}
-                  stroke={meta.color}
+                  stroke={pairColor}
                   strokeWidth={2.25}
                   isAnimationActive={!isLoading}
                   animationDuration={500}
@@ -918,20 +1132,8 @@ export default function PriceChart({
               : "No data"}
           </div>
 
-          <div
-            className={`
-              text-[11px]
-              font-medium
-              transition-all
-              duration-700
-              ${
-                justUpdated
-                  ? "opacity-100 text-emerald-500"
-                  : "opacity-0 text-emerald-500"
-              }
-            `}
-          >
-            Updated
+          <div className="text-[11px] text-muted-foreground">
+            Updated automatically
           </div>
         </div>
       </div>

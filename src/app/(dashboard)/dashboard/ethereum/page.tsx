@@ -1,5 +1,5 @@
 // src/app/(dashboard)/dashboard/ethereum/page.tsx
-import EthereumTopTile from "@/components/toptiles/EthereumTopTile";
+import CryptoTopTiles from "@/components/toptiles/CryptoTopTiles";
 import PriceChart from "@/components/charts/PriceChart";
 import {
   CurrencyProvider,
@@ -22,7 +22,7 @@ export default function EthereumPage() {
         </div>
       </div>
 
-      <EthereumTopTile />
+      <CryptoTopTiles asset="ethereum" />
 
         <div className="grid grid-cols-1 gap-6">
           <PriceChart coin="ethereum" />
