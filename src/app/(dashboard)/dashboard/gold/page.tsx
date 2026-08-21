@@ -1,6 +1,6 @@
 // src/app/(dashboard)/dashboard/gold/page.tsx
 import React from "react";
-import GoldTopTile from "@/components/toptiles/GoldTopTile";
+import CommodityTopTiles from "@/components/toptiles/CommodityTopTiles";
 import MetalChart from "@/components/charts/MetalsChart";
 import Polymarket from "@/components/Polymarket";
 import {
@@ -22,7 +22,7 @@ export default function GoldPage() {
           </div>
         </div>
 
-        <GoldTopTile />
+        <CommodityTopTiles asset="gold" />
 
         <div className="grid grid-cols-1 gap-6">
           <MetalChart metal="gold" />

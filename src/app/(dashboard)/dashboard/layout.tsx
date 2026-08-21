@@ -1,3 +1,5 @@
+// ── src/app/(dashboard)/dashboard/layout.tsx ──────────────────────
+
 "use client";
 
 import { useEffect, useState } from "react";

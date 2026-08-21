@@ -1,6 +1,6 @@
 // src/app/(dashboard)/dashboard/silver/page.tsx
 import React from "react";
-import TopTile from "@/components/toptiles/SilverTopTile";
+import CommodityTopTiles from "@/components/toptiles/CommodityTopTiles";
 import MetalChart from "@/components/charts/MetalsChart";
 import Polymarket from "@/components/Polymarket";import {
   CurrencyProvider,
@@ -19,7 +19,7 @@ export default function SilverPage() {
             <CurrencyToggle currencies={["USD"]} />
         </div>
       </div>
-        <TopTile />
+        <CommodityTopTiles asset="silver" />
         <div className="grid grid-cols-1 gap-6">
             <MetalChart metal="silver" />
         </div>

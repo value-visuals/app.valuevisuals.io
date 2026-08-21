@@ -6,7 +6,10 @@ import { Button } from "@/components/ui/button";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Mail, Lock, Eye, EyeOff } from "lucide-react";
 import ThemeToggle from "@/components/theme/ThemeToggle";
-import { signInWithEmailAndPassword } from "firebase/auth";
+import {
+  signInWithEmailAndPassword,
+  signOut as firebaseSignOut,
+} from "firebase/auth";
 import { auth } from "@/lib/firebase";
 
 export default function SignInPage() {
@@ -21,43 +24,63 @@ export default function SignInPage() {
 
   const expired = search.get("expired") === "1";
 
-  async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
+  async function onSubmit(
+    e: React.FormEvent<HTMLFormElement>
+  ) {
     e.preventDefault();
 
     setError(null);
     setLoading(true);
 
     try {
-      const credential = await signInWithEmailAndPassword(
-        auth,
-        email.trim(),
-        password
-      );
+      const credential =
+        await signInWithEmailAndPassword(
+          auth,
+          email.trim(),
+          password
+        );
 
-      const idToken = await credential.user.getIdToken(true);
+      const idToken =
+        await credential.user.getIdToken(true);
 
-      const sessionResponse = await fetch("/api/auth/session", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          idToken,
-        }),
-      });
+      const sessionResponse =
+        await fetch("/api/auth/session", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          credentials: "include",
+          cache: "no-store",
+          body: JSON.stringify({
+            idToken,
+          }),
+        });
 
-      const sessionData = await sessionResponse.json().catch(() => ({}));
+      const sessionData =
+        await sessionResponse
+          .json()
+          .catch(() => ({}));
 
       if (!sessionResponse.ok) {
-        await auth.currentUser?.getIdToken(true).catch(() => {});
+
+        await firebaseSignOut(auth);
+
         throw new Error(
-          sessionData?.error || "Unable to establish server session"
+          sessionData?.error ||
+            "Unable to establish server session"
         );
       }
 
+      console.log(
+        "[AUTH] Sign-in successful"
+      );
+
       router.replace("/dashboard");
     } catch (err: unknown) {
-      console.error("Sign-in error:", err);
+      console.error(
+        "[AUTH] Sign-in error:",
+        err
+      );
 
       if (err instanceof Error) {
         setError(err.message);
