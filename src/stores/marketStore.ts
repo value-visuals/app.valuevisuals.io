@@ -3,8 +3,12 @@
 import { create } from "zustand";
 
 import { loadMarketData } from "@/lib/market/loadMarketData";
+import { authenticatedFetch } from "@/lib/auth/authenticatedFetch";
 
-export type MarketCurrency = "usd" | "eur" | "gbp";
+export type MarketCurrency =
+  | "usd"
+  | "eur"
+  | "gbp";
 
 export type CoinStats = {
   priceUsd?: number | null;
@@ -15,11 +19,30 @@ export type CoinStats = {
   dominancePct?: number | null;
 };
 
+export type CryptoAssetSummary = {
+  [currency: string]: number | null | undefined;
+};
+
+export type CryptoAssetStats = {
+  price?: number | null;
+  change24hPct?: number | null;
+  change24h?: number | null;
+  marketCap?: number | null;
+  volume24h?: number | null;
+  dominancePct?: number | null;
+};
+
 export type CryptoSummary = {
-  bitcoin?: Record<string, number>;
-  ethereum?: Record<string, number>;
-  monero?: Record<string, number>;
-  global_market_cap?: Record<string, number>;
+  bitcoin?: CryptoAssetSummary;
+  ethereum?: CryptoAssetSummary;
+  monero?: CryptoAssetSummary;
+
+  bitcoin_stats?: CryptoAssetStats;
+  ethereum_stats?: CryptoAssetStats;
+  monero_stats?: CryptoAssetStats;
+
+  global_market_cap?: CryptoAssetSummary;
+
   [key: string]: unknown;
 };
 
@@ -42,7 +65,9 @@ export type MetalsSummary = {
   [key: string]: unknown;
 };
 
-export type MetalAsset = "gold" | "silver";
+export type MetalAsset =
+  | "gold"
+  | "silver";
 
 export type MetalSummary = {
   metal: string;
@@ -100,9 +125,13 @@ type MarketState = {
   lastGoldUpdate: number | null;
   lastSilverUpdate: number | null;
 
-  setCurrency: (currency: MarketCurrency) => void;
+  setCurrency: (
+    currency: MarketCurrency
+  ) => void;
 
-  fetchMarketData: (currency?: MarketCurrency) => Promise<void>;
+  fetchMarketData: (
+    currency?: MarketCurrency
+  ) => Promise<void>;
 
   setCryptoSummary: (
     data: CryptoSummary | null
@@ -180,9 +209,17 @@ type MarketState = {
     error: string | null
   ) => void;
 
-  fetchBitcoinStats: () => Promise<void>;
-  fetchEthereumStats: () => Promise<void>;
-  fetchMoneroStats: () => Promise<void>;
+  fetchBitcoinStats: (
+    currency?: MarketCurrency
+  ) => Promise<void>;
+
+  fetchEthereumStats: (
+    currency?: MarketCurrency
+  ) => Promise<void>;
+
+  fetchMoneroStats: (
+    currency?: MarketCurrency
+  ) => Promise<void>;
 
   fetchMetal: (
     asset: MetalAsset
@@ -191,20 +228,50 @@ type MarketState = {
   resetMarket: () => void;
 };
 
+/*
+ * Fetch an individual crypto asset.
+ *
+ * The API is given the requested currency so that
+ * price, market cap, and volume can be returned
+ * in the same currency selected by the user.
+ */
 async function fetchCoinStats(
-  endpoint: string
+  endpoint: string,
+  currency: MarketCurrency
 ): Promise<CoinStats> {
-  const res = await fetch(endpoint, {
-    cache: "no-store",
-  });
+  const currencyParam =
+    encodeURIComponent(currency);
 
-  if (!res.ok) {
-    throw new Error(
-      `Failed to fetch ${endpoint}`
+  const separator =
+    endpoint.includes("?")
+      ? "&"
+      : "?";
+
+  const response =
+    await authenticatedFetch(
+      `${endpoint}${separator}currency=${currencyParam}`
     );
+
+  if (!response.ok) {
+    const body = await response
+      .json()
+      .catch(() => ({}));
+
+    const error = new Error(
+      body?.error ||
+        `Request failed: ${response.status} ${response.statusText}`
+    );
+
+    (error as any).status =
+      response.status;
+
+    (error as any).code =
+      body?.code;
+
+    throw error;
   }
 
-  return res.json();
+  return response.json();
 }
 
 async function fetchMetalSummary(
@@ -224,21 +291,27 @@ async function fetchMetalSummary(
     );
   }
 
-  const data = await res.json();
+  const data =
+    await res.json();
 
   const symbol =
-    asset === "gold" ? "XAU" : "XAG";
+    asset === "gold"
+      ? "XAU"
+      : "XAG";
 
   const item =
     data &&
     Array.isArray(data.items)
       ? data.items.find(
           (it: MetalsSummaryItem) =>
-            String(it?.symbol || "")
+            String(
+              it?.symbol || ""
+            )
               .toUpperCase()
               .startsWith(`${symbol}/`) ||
-            String(it?.name || "")
-              .toLowerCase() === asset
+            String(
+              it?.name || ""
+            ).toLowerCase() === asset
         )
       : null;
 
@@ -259,7 +332,9 @@ async function fetchMetalSummary(
           : null,
       changePct24h:
         item.percentChange != null
-          ? Number(item.percentChange)
+          ? Number(
+              item.percentChange
+            )
           : null,
       high24h:
         item.high != null
@@ -270,7 +345,9 @@ async function fetchMetalSummary(
           ? Number(item.low)
           : null,
       at: item.datetime
-        ? Date.parse(item.datetime)
+        ? Date.parse(
+            item.datetime
+          )
         : Date.now(),
       source: "API Ninjas",
     };
@@ -297,7 +374,9 @@ async function fetchMetalSummary(
           : null,
       changePct24h:
         data.changePct24h != null
-          ? Number(data.changePct24h)
+          ? Number(
+              data.changePct24h
+            )
           : null,
       high24h:
         data.high24h != null
@@ -326,11 +405,21 @@ export const useMarketStore =
     /*
      * Incremented for every market-summary request.
      *
-     * This prevents an older request from overwriting
-     * a newer currency selection if the user switches
-     * currencies quickly.
+     * Prevents an older request from overwriting
+     * a newer currency selection.
      */
     let marketRequestId = 0;
+
+    /*
+     * Individual request IDs for BTC, ETH, and XMR.
+     *
+     * This is important because each asset can have
+     * multiple requests in flight when the user changes
+     * currencies quickly.
+     */
+    let bitcoinRequestId = 0;
+    let ethereumRequestId = 0;
+    let moneroRequestId = 0;
 
     return {
       currency: "usd",
@@ -380,17 +469,23 @@ export const useMarketStore =
           currency,
         }),
 
-      fetchMarketData: async (currency) => {
+      fetchMarketData: async (
+        currency
+      ) => {
         const requestedCurrency =
-          currency ?? get().currency;
+          currency ??
+          get().currency;
 
         const requestId =
           ++marketRequestId;
 
         set({
-          currency: requestedCurrency,
+          currency:
+            requestedCurrency,
+
           cryptoLoading: true,
           metalsLoading: true,
+
           cryptoError: null,
           metalsError: null,
         });
@@ -403,12 +498,9 @@ export const useMarketStore =
             requestedCurrency
           );
 
-          /*
-           * Ignore this response if another
-           * market request started after it.
-           */
           if (
-            requestId !== marketRequestId
+            requestId !==
+            marketRequestId
           ) {
             return;
           }
@@ -423,16 +515,16 @@ export const useMarketStore =
             cryptoError: null,
             metalsError: null,
 
-            lastCryptoUpdate: Date.now(),
-            lastMetalsUpdate: Date.now(),
+            lastCryptoUpdate:
+              Date.now(),
+
+            lastMetalsUpdate:
+              Date.now(),
           });
         } catch (error) {
-          /*
-           * Don't let an older failed request
-           * overwrite the state of a newer request.
-           */
           if (
-            requestId !== marketRequestId
+            requestId !==
+            marketRequestId
           ) {
             return;
           }
@@ -447,114 +539,170 @@ export const useMarketStore =
           set({
             cryptoLoading: false,
             metalsLoading: false,
+
             cryptoError: message,
             metalsError: message,
           });
         }
       },
 
-      setCryptoSummary: (data) =>
+      setCryptoSummary: (
+        data
+      ) =>
         set({
           cryptoSummary: data,
-          lastCryptoUpdate: Date.now(),
+          lastCryptoUpdate:
+            Date.now(),
         }),
 
-      setMetalsSummary: (data) =>
+      setMetalsSummary: (
+        data
+      ) =>
         set({
           metalsSummary: data,
-          lastMetalsUpdate: Date.now(),
+          lastMetalsUpdate:
+            Date.now(),
         }),
 
-      setBitcoinStats: (data) =>
+      setBitcoinStats: (
+        data
+      ) =>
         set({
           bitcoinStats: data,
-          lastBitcoinUpdate: Date.now(),
+          lastBitcoinUpdate:
+            Date.now(),
         }),
 
-      setEthereumStats: (data) =>
+      setEthereumStats: (
+        data
+      ) =>
         set({
           ethereumStats: data,
-          lastEthereumUpdate: Date.now(),
+          lastEthereumUpdate:
+            Date.now(),
         }),
 
-      setMoneroStats: (data) =>
+      setMoneroStats: (
+        data
+      ) =>
         set({
           moneroStats: data,
-          lastMoneroUpdate: Date.now(),
+          lastMoneroUpdate:
+            Date.now(),
         }),
 
-      setCryptoLoading: (loading) =>
+      setCryptoLoading: (
+        loading
+      ) =>
         set({
           cryptoLoading: loading,
         }),
 
-      setMetalsLoading: (loading) =>
+      setMetalsLoading: (
+        loading
+      ) =>
         set({
           metalsLoading: loading,
         }),
 
-      setBitcoinLoading: (loading) =>
+      setBitcoinLoading: (
+        loading
+      ) =>
         set({
           bitcoinLoading: loading,
         }),
 
-      setEthereumLoading: (loading) =>
+      setEthereumLoading: (
+        loading
+      ) =>
         set({
           ethereumLoading: loading,
         }),
 
-      setMoneroLoading: (loading) =>
+      setMoneroLoading: (
+        loading
+      ) =>
         set({
           moneroLoading: loading,
         }),
 
-      setGoldLoading: (loading) =>
+      setGoldLoading: (
+        loading
+      ) =>
         set({
           goldLoading: loading,
         }),
 
-      setSilverLoading: (loading) =>
+      setSilverLoading: (
+        loading
+      ) =>
         set({
           silverLoading: loading,
         }),
 
-      setCryptoError: (error) =>
+      setCryptoError: (
+        error
+      ) =>
         set({
           cryptoError: error,
         }),
 
-      setMetalsError: (error) =>
+      setMetalsError: (
+        error
+      ) =>
         set({
           metalsError: error,
         }),
 
-      setBitcoinError: (error) =>
+      setBitcoinError: (
+        error
+      ) =>
         set({
           bitcoinError: error,
         }),
 
-      setEthereumError: (error) =>
+      setEthereumError: (
+        error
+      ) =>
         set({
           ethereumError: error,
         }),
 
-      setMoneroError: (error) =>
+      setMoneroError: (
+        error
+      ) =>
         set({
           moneroError: error,
         }),
 
-      setGoldError: (error) =>
+      setGoldError: (
+        error
+      ) =>
         set({
           goldError: error,
         }),
 
-      setSilverError: (error) =>
+      setSilverError: (
+        error
+      ) =>
         set({
           silverError: error,
         }),
 
-      fetchBitcoinStats: async () => {
+      fetchBitcoinStats: async (
+        currency
+      ) => {
+        const requestedCurrency =
+          currency ??
+          get().currency;
+
+        const requestId =
+          ++bitcoinRequestId;
+
         set({
+          currency:
+            requestedCurrency,
+
           bitcoinLoading: true,
           bitcoinError: null,
         });
@@ -562,28 +710,58 @@ export const useMarketStore =
         try {
           const data =
             await fetchCoinStats(
-              "/api/crypto/bitcoin"
+              "/api/crypto/bitcoin",
+              requestedCurrency
             );
+
+          if (
+            requestId !==
+            bitcoinRequestId
+          ) {
+            return;
+          }
 
           set({
             bitcoinStats: data,
             bitcoinLoading: false,
             bitcoinError: null,
-            lastBitcoinUpdate: Date.now(),
+            lastBitcoinUpdate:
+              Date.now(),
           });
         } catch (error) {
+          if (
+            requestId !==
+            bitcoinRequestId
+          ) {
+            return;
+          }
+
           console.error(error);
 
           set({
             bitcoinLoading: false,
             bitcoinError:
-              "Failed to load BTC data",
+              error instanceof Error
+                ? error.message
+                : "Failed to load BTC data",
           });
         }
       },
 
-      fetchEthereumStats: async () => {
+      fetchEthereumStats: async (
+        currency
+      ) => {
+        const requestedCurrency =
+          currency ??
+          get().currency;
+
+        const requestId =
+          ++ethereumRequestId;
+
         set({
+          currency:
+            requestedCurrency,
+
           ethereumLoading: true,
           ethereumError: null,
         });
@@ -591,28 +769,58 @@ export const useMarketStore =
         try {
           const data =
             await fetchCoinStats(
-              "/api/crypto/ethereum"
+              "/api/crypto/ethereum",
+              requestedCurrency
             );
+
+          if (
+            requestId !==
+            ethereumRequestId
+          ) {
+            return;
+          }
 
           set({
             ethereumStats: data,
             ethereumLoading: false,
             ethereumError: null,
-            lastEthereumUpdate: Date.now(),
+            lastEthereumUpdate:
+              Date.now(),
           });
         } catch (error) {
+          if (
+            requestId !==
+            ethereumRequestId
+          ) {
+            return;
+          }
+
           console.error(error);
 
           set({
             ethereumLoading: false,
             ethereumError:
-              "Failed to load ETH data",
+              error instanceof Error
+                ? error.message
+                : "Failed to load ETH data",
           });
         }
       },
 
-      fetchMoneroStats: async () => {
+      fetchMoneroStats: async (
+        currency
+      ) => {
+        const requestedCurrency =
+          currency ??
+          get().currency;
+
+        const requestId =
+          ++moneroRequestId;
+
         set({
+          currency:
+            requestedCurrency,
+
           moneroLoading: true,
           moneroError: null,
         });
@@ -620,28 +828,49 @@ export const useMarketStore =
         try {
           const data =
             await fetchCoinStats(
-              "/api/crypto/monero"
+              "/api/crypto/monero",
+              requestedCurrency
             );
+
+          if (
+            requestId !==
+            moneroRequestId
+          ) {
+            return;
+          }
 
           set({
             moneroStats: data,
             moneroLoading: false,
             moneroError: null,
-            lastMoneroUpdate: Date.now(),
+            lastMoneroUpdate:
+              Date.now(),
           });
         } catch (error) {
+          if (
+            requestId !==
+            moneroRequestId
+          ) {
+            return;
+          }
+
           console.error(error);
 
           set({
             moneroLoading: false,
             moneroError:
-              "Failed to load XMR data",
+              error instanceof Error
+                ? error.message
+                : "Failed to load XMR data",
           });
         }
       },
 
-      fetchMetal: async (asset) => {
-        const isGold = asset === "gold";
+      fetchMetal: async (
+        asset
+      ) => {
+        const isGold =
+          asset === "gold";
 
         set(
           isGold
@@ -657,21 +886,25 @@ export const useMarketStore =
 
         try {
           const data =
-            await fetchMetalSummary(asset);
+            await fetchMetalSummary(
+              asset
+            );
 
           if (isGold) {
             set({
               goldSummary: data,
               goldLoading: false,
               goldError: null,
-              lastGoldUpdate: Date.now(),
+              lastGoldUpdate:
+                Date.now(),
             });
           } else {
             set({
               silverSummary: data,
               silverLoading: false,
               silverError: null,
-              lastSilverUpdate: Date.now(),
+              lastSilverUpdate:
+                Date.now(),
             });
           }
         } catch (error) {
@@ -693,7 +926,16 @@ export const useMarketStore =
         }
       },
 
-      resetMarket: () =>
+      resetMarket: () => {
+        /*
+         * Invalidate any requests that are currently
+         * in flight before resetting the state.
+         */
+        marketRequestId++;
+        bitcoinRequestId++;
+        ethereumRequestId++;
+        moneroRequestId++;
+
         set({
           cryptoSummary: null,
           metalsSummary: null,
@@ -734,6 +976,7 @@ export const useMarketStore =
 
           lastGoldUpdate: null,
           lastSilverUpdate: null,
-        }),
+        });
+      },
     };
-});
+  });

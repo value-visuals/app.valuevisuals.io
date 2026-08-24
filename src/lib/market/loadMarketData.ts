@@ -16,12 +16,14 @@ type LoadResult = {
 async function fetchJson<T>(
   url: string
 ): Promise<T> {
-  const response = await authenticatedFetch(url);
+  const response =
+    await authenticatedFetch(url);
 
   if (!response.ok) {
-    const body = await response
-      .json()
-      .catch(() => ({}));
+    const body =
+      await response
+        .json()
+        .catch(() => ({}));
 
     const error = new Error(
       body?.error ||
@@ -29,10 +31,14 @@ async function fetchJson<T>(
     );
 
     /*
-     * Preserve backend auth information for later handling.
+     * Preserve backend auth information
+     * for later handling.
      */
-    (error as any).status = response.status;
-    (error as any).code = body?.code;
+    (error as any).status =
+      response.status;
+
+    (error as any).code =
+      body?.code;
 
     throw error;
   }
@@ -56,8 +62,13 @@ export async function loadMarketData(
     cryptoSummary,
     metalsSummary,
   ] = await Promise.all([
-    fetchJson<CryptoSummary>(cryptoUrl),
-    fetchJson<MetalsSummary>(metalsUrl),
+    fetchJson<CryptoSummary>(
+      cryptoUrl
+    ),
+
+    fetchJson<MetalsSummary>(
+      metalsUrl
+    ),
   ]);
 
   return {
