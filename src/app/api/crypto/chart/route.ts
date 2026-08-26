@@ -1,5 +1,12 @@
-import { NextRequest, NextResponse } from "next/server";
+// app/api/crypto/chart/route.ts
+
+import {
+  NextRequest,
+  NextResponse,
+} from "next/server";
+
 import { cookies } from "next/headers";
+
 import { getApiUrl } from "@/lib/getApiUrl";
 
 export const dynamic = "force-dynamic";
@@ -7,92 +14,230 @@ export const fetchCache = "force-no-store";
 export const revalidate = 0;
 export const runtime = "nodejs";
 
-async function getAuthHeader(req: Request) {
-  const hdr = req.headers.get("authorization");
+// -----------------------------------------------------------------------------
+// Configuration
+// -----------------------------------------------------------------------------
 
-  if (hdr?.startsWith("Bearer ")) {
-    return hdr;
+const SUPPORTED_SYMBOLS = new Set([
+  "BTC",
+  "ETH",
+  "XMR",
+]);
+
+const SUPPORTED_CURRENCIES = new Set([
+  "USD",
+  "EUR",
+  "GBP",
+]);
+
+// -----------------------------------------------------------------------------
+// Authentication
+// -----------------------------------------------------------------------------
+
+async function getAuthHeader(
+  req: Request
+) {
+  /*
+   * Prefer the Authorization header sent
+   * by authenticatedFetch().
+   */
+  const header =
+    req.headers.get("authorization");
+
+  if (
+    header?.startsWith("Bearer ")
+  ) {
+    return header;
   }
 
+  /*
+   * Fallback for requests where the token
+   * is stored in the session cookie.
+   */
   const store = await cookies();
 
   const token =
     store.get("__session")?.value ||
     store.get("idToken")?.value;
 
-  return token ? `Bearer ${token}` : undefined;
+  return token
+    ? `Bearer ${token}`
+    : undefined;
 }
 
-export async function GET(req: NextRequest) {
-  const { searchParams } = new URL(req.url);
+// -----------------------------------------------------------------------------
+// Helpers
+// -----------------------------------------------------------------------------
 
-  const coin =
-    searchParams.get("coin") || "bitcoin";
+function normalizeSymbol(
+  coin: string
+) {
+  const value = String(
+    coin || ""
+  )
+    .trim()
+    .toLowerCase();
 
-  const days =
-    searchParams.get("days") || "30";
+  const symbolMap: Record<
+    string,
+    string
+  > = {
+    bitcoin: "BTC",
+    btc: "BTC",
 
-  const currency =
-    searchParams.get("currency") || "usd";
+    ethereum: "ETH",
+    eth: "ETH",
 
-  /*
-   * --------------------------------------------------
-   * 1. ALWAYS TRY COINGECKO FIRST
-   * --------------------------------------------------
-   */
+    monero: "XMR",
+    xmr: "XMR",
+  };
 
-  const coinGeckoUrl =
-    `https://api.coingecko.com/api/v3/coins/${coin}/market_chart` +
-    `?vs_currency=${encodeURIComponent(currency)}` +
-    `&days=${encodeURIComponent(days)}`;
+  return (
+    symbolMap[value] ||
+    value.toUpperCase()
+  );
+}
 
-  try {
-    const cgRes = await fetch(coinGeckoUrl, {
-      cache: "no-store",
-      headers: {
-        Accept: "application/json",
-      },
-    });
+function normalizeCurrency(
+  currency: string
+) {
+  const value = String(
+    currency || "USD"
+  )
+    .trim()
+    .toUpperCase();
 
-    if (cgRes.ok) {
-      const data = await cgRes.json();
+  return SUPPORTED_CURRENCIES.has(
+    value
+  )
+    ? value
+    : "USD";
+}
 
-      return NextResponse.json(data, {
-        status: 200,
-        headers: {
-          "Cache-Control":
-            "no-store, no-cache, must-revalidate",
-        },
-      });
-    }
+function normalizeDays(
+  days: string
+) {
+  const value = Number(days);
 
-    /*
-     * CoinGecko failed.
-     *
-     * Do NOT return the error yet.
-     * Fall through to the Node backend.
-     */
-
-    console.warn(
-      `[/api/crypto/chart] CoinGecko failed: ${cgRes.status}`
-    );
-  } catch (err) {
-    console.warn(
-      "[/api/crypto/chart] CoinGecko request failed:",
-      err
-    );
+  if (
+    !Number.isFinite(value) ||
+    value <= 0
+  ) {
+    return 30;
   }
 
   /*
-   * --------------------------------------------------
-   * 2. COINGECKO FAILED → NODE BACKEND
-   * --------------------------------------------------
+   * Prevent accidentally enormous
+   * Firestore requests.
    */
+  return Math.min(
+    Math.floor(value),
+    3650
+  );
+}
 
+// -----------------------------------------------------------------------------
+// GET /api/crypto/chart
+//
+// Frontend examples:
+//
+// /api/crypto/chart?coin=bitcoin&days=30&currency=usd
+// /api/crypto/chart?coin=ethereum&days=7&currency=eur
+// /api/crypto/chart?coin=monero&days=30&currency=gbp
+//
+// Backend:
+//
+// /api/crypto/chart
+//   ?symbol=BTC
+//   &range=30d
+//   &interval=auto
+//   &currency=USD
+// -----------------------------------------------------------------------------
+
+export async function GET(
+  req: NextRequest
+) {
   try {
-    const API_BASE = getApiUrl();
+    const {
+      searchParams,
+    } = new URL(req.url);
 
-    const auth = await getAuthHeader(req);
+    // -------------------------------------------------------------------------
+    // Request parameters
+    // -------------------------------------------------------------------------
+
+    const coin =
+      searchParams.get("coin") ||
+      "bitcoin";
+
+    const days =
+      normalizeDays(
+        searchParams.get("days") ||
+          "30"
+      );
+
+    const currency =
+      normalizeCurrency(
+        searchParams.get(
+          "currency"
+        ) || "USD"
+      );
+
+    // -------------------------------------------------------------------------
+    // Map frontend asset → backend symbol
+    // -------------------------------------------------------------------------
+
+    const symbol =
+      normalizeSymbol(coin);
+
+    // -------------------------------------------------------------------------
+    // Validate symbol
+    // -------------------------------------------------------------------------
+
+    if (
+      !SUPPORTED_SYMBOLS.has(
+        symbol
+      )
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            `Unsupported crypto asset: ${symbol}. ` +
+            "Supported assets: BTC, ETH, XMR.",
+        },
+        {
+          status: 400,
+        }
+      );
+    }
+
+    // -------------------------------------------------------------------------
+    // Validate currency
+    // -------------------------------------------------------------------------
+
+    if (
+      !SUPPORTED_CURRENCIES.has(
+        currency
+      )
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            `Unsupported currency: ${currency}. ` +
+            "Supported currencies: USD, EUR, GBP.",
+        },
+        {
+          status: 400,
+        }
+      );
+    }
+
+    // -------------------------------------------------------------------------
+    // Authentication
+    // -------------------------------------------------------------------------
+
+    const auth =
+      await getAuthHeader(req);
 
     if (!auth) {
       return NextResponse.json(
@@ -100,80 +245,171 @@ export async function GET(req: NextRequest) {
           error:
             "Missing Authorization bearer token",
         },
-        { status: 401 }
-      );
-    }
-
-    const symbolMap: Record<string, string> = {
-      bitcoin: "BTC",
-      ethereum: "ETH",
-      monero: "XMR",
-    };
-
-    const symbol =
-      symbolMap[coin.toLowerCase()] ||
-      coin.toUpperCase();
-
-    const backendUrl =
-      `${API_BASE}/api/crypto/chart` +
-      `?symbol=${encodeURIComponent(symbol)}` +
-      `&range=${encodeURIComponent(`${days}d`)}` +
-      `&interval=auto` +
-      `&currency=${encodeURIComponent(currency.toUpperCase())}`;
-
-    const backendRes = await fetch(
-      backendUrl,
-      {
-        cache: "no-store",
-        headers: {
-          Authorization: auth,
-          Accept: "application/json",
-        },
-      }
-    );
-
-    const backendData =
-      await backendRes.json().catch(() => ({
-        error: "Invalid backend response",
-      }));
-
-    if (!backendRes.ok) {
-      return NextResponse.json(
-        backendData,
         {
-          status: backendRes.status,
+          status: 401,
         }
       );
     }
 
-    /*
-     * Backend returns:
-     *
-     * {
-     *   candles: [
-     *     { t, o, h, l, c }
-     *   ]
-     * }
-     *
-     * Your PriceChart already understands this shape.
-     */
+    // -------------------------------------------------------------------------
+    // Backend URL
+    // -------------------------------------------------------------------------
+
+    const API_BASE =
+      getApiUrl();
+
+    const backendUrl =
+      new URL(
+        "/api/crypto/chart",
+        API_BASE
+      );
+
+    backendUrl.searchParams.set(
+      "symbol",
+      symbol
+    );
+
+    backendUrl.searchParams.set(
+      "range",
+      `${days}d`
+    );
+
+    backendUrl.searchParams.set(
+      "interval",
+      "auto"
+    );
+
+    backendUrl.searchParams.set(
+      "currency",
+      currency
+    );
+
+    // -------------------------------------------------------------------------
+    // Call Node backend
+    // -------------------------------------------------------------------------
+
+    console.log(
+      "[/api/crypto/chart] requesting backend:",
+      backendUrl.toString()
+    );
+
+    const backendResponse =
+      await fetch(
+        backendUrl.toString(),
+        {
+          method: "GET",
+
+          cache: "no-store",
+
+          headers: {
+            Authorization: auth,
+            Accept:
+              "application/json",
+          },
+        }
+      );
+
+    // -------------------------------------------------------------------------
+    // Read backend response
+    // -------------------------------------------------------------------------
+
+    const data =
+      await backendResponse
+        .json()
+        .catch(() => null);
+
+    // -------------------------------------------------------------------------
+    // Backend error
+    // -------------------------------------------------------------------------
+
+    if (
+      !backendResponse.ok
+    ) {
+      console.error(
+        "[/api/crypto/chart] backend returned error:",
+        {
+          status:
+            backendResponse.status,
+          symbol,
+          currency,
+          days,
+          data,
+        }
+      );
+
+      return NextResponse.json(
+        data || {
+          error:
+            "Crypto chart backend request failed",
+        },
+        {
+          status:
+            backendResponse.status,
+        }
+      );
+    }
+
+    // -------------------------------------------------------------------------
+    // Validate response
+    // -------------------------------------------------------------------------
+
+    if (
+      !data ||
+      typeof data !== "object"
+    ) {
+      console.error(
+        "[/api/crypto/chart] invalid backend response"
+      );
+
+      return NextResponse.json(
+        {
+          error:
+            "Invalid backend chart response",
+        },
+        {
+          status: 502,
+        }
+      );
+    }
+
+    // -------------------------------------------------------------------------
+    // Return Firebase-backed chart data
+    // -------------------------------------------------------------------------
 
     return NextResponse.json(
-      backendData,
-      { status: 200 }
+      data,
+      {
+        status: 200,
+
+        headers: {
+          "Cache-Control":
+            "no-store, no-cache, must-revalidate, proxy-revalidate",
+          Pragma:
+            "no-cache",
+          Expires:
+            "0",
+        },
+      }
     );
-  } catch (err: any) {
+  } catch (error: any) {
     console.error(
-      "[/api/crypto/chart] backend fallback failed:",
-      err?.message || err
+      "[/api/crypto/chart] backend request failed:",
+      error?.message ||
+        error
     );
 
     return NextResponse.json(
       {
-        error: "Chart providers unavailable",
-        detail: err?.message || String(err),
+        error:
+          "Chart backend unavailable",
+
+        detail:
+          error?.message ||
+          String(error),
       },
-      { status: 502 }
+      {
+        status: 502,
+      }
     );
   }
 }
