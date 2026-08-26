@@ -5,34 +5,44 @@ import { getApiUrl } from "@/lib/getApiUrl";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-const BASES = { gold: "XAU", silver: "XAG" } as const;
-const SUPPORTED_BASES = new Set(["XAU", "XAG"]);
-const SUPPORTED_CURRENCIES = new Set(["USD", "EUR", "GBP"]);
+type Base = "XAU" | "XAG";
+type Currency = "USD" | "EUR" | "GBP";
+type Cookie = { value: string };
 
-async function getCookieStore() {
-  const store = cookies() as any;
-  return typeof store?.then === "function" ? await store : store;
+const BASES: Record<string, Base> = { gold: "XAU", silver: "XAG" };
+const BASES_SET = new Set<Base>(["XAU", "XAG"]);
+const CURRENCIES = new Set<Currency>(["USD", "EUR", "GBP"]);
+
+async function cookieStore() {
+  const c = cookies() as any;
+  return typeof c?.then === "function" ? await c : c;
 }
 
-function normalizeBase(value: string | null): "XAU" | "XAG" {
-  const v = String(value || "").trim().toUpperCase();
-  if (SUPPORTED_BASES.has(v)) return v as "XAU" | "XAG";
-  return BASES[String(value || "").trim().toLowerCase() as keyof typeof BASES] || "XAU";
+function base(value: string | null): Base {
+  const v = String(value || "").trim();
+  const upper = v.toUpperCase();
+  return BASES_SET.has(upper as Base)
+    ? (upper as Base)
+    : BASES[v.toLowerCase()] || "XAU";
 }
 
-function normalizeCurrency(value: string | null): "USD" | "EUR" | "GBP" {
+function currency(value: string | null): Currency {
   const v = String(value || "USD").trim().toUpperCase();
-  return SUPPORTED_CURRENCIES.has(v) ? v as "USD" | "EUR" | "GBP" : "USD";
+  return CURRENCIES.has(v as Currency) ? (v as Currency) : "USD";
 }
 
-async function buildAuthHeaders(req: NextRequest) {
-  const headers: Record<string, string> = { accept: "application/json" };
+async function authHeaders(req: NextRequest) {
+  const headers: Record<string, string> = {
+    accept: "application/json",
+  };
+
   const auth = req.headers.get("authorization");
 
   if (auth) {
     headers.authorization = auth;
   } else {
-    const jar = await getCookieStore();
+    const jar = await cookieStore();
+
     let token =
       jar.get("authToken")?.value ||
       jar.get("token")?.value ||
@@ -40,21 +50,19 @@ async function buildAuthHeaders(req: NextRequest) {
       jar.get("access_token")?.value ||
       jar.get("Authorization")?.value;
 
-    if (!token) {
-      token = jar
-        .getAll()
-        .find(c => typeof c.value === "string" && c.value.split(".").length === 3)
-        ?.value;
-    }
+    token ||= jar
+      .getAll()
+      .find(
+        (c: Cookie) =>
+          c.value.split(".").length === 3
+      )?.value;
 
     if (token) {
       headers.authorization = token.startsWith("Bearer ")
         ? token
         : `Bearer ${token}`;
-      headers["x-auth-token"] = headers.authorization.replace(
-        /^Bearer\s+/i,
-        ""
-      );
+      headers["x-auth-token"] =
+        headers.authorization.replace(/^Bearer\s+/i, "");
     }
   }
 
@@ -66,28 +74,17 @@ async function buildAuthHeaders(req: NextRequest) {
 
 export async function GET(req: NextRequest) {
   try {
-    const incoming = new URL(req.url);
-    const params = incoming.searchParams;
+    const params = new URL(req.url).searchParams;
+    const b = base(params.get("base") || params.get("metal"));
+    const c = currency(params.get("currency"));
 
-    const base = normalizeBase(
-      params.get("base") || params.get("metal")
-    );
+    const url = new URL(`${getApiUrl()}/api/metals/summary`);
+    url.searchParams.set("base", b);
+    url.searchParams.set("currency", c);
 
-    const currency = normalizeCurrency(
-      params.get("currency")
-    );
-
-    const backend = new URL(
-      `${getApiUrl()}/api/metals/summary`
-    );
-
-    backend.searchParams.set("base", base);
-    backend.searchParams.set("currency", currency);
-
-    const response = await fetch(backend, {
-      method: "GET",
+    const response = await fetch(url, {
       cache: "no-store",
-      headers: await buildAuthHeaders(req),
+      headers: await authHeaders(req),
     });
 
     return new Response(await response.text(), {
@@ -99,14 +96,11 @@ export async function GET(req: NextRequest) {
       },
     });
   } catch (error) {
-    console.error("[api/metals/summary] proxy error:", error);
+    console.error("[api/metals/summary]", error);
 
-    return new Response(
-      JSON.stringify({ error: "Failed to load metals summary" }),
-      {
-        status: 500,
-        headers: { "content-type": "application/json" },
-      }
+    return Response.json(
+      { error: "Failed to load metals summary" },
+      { status: 500 }
     );
   }
 }
