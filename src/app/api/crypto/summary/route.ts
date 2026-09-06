@@ -205,6 +205,15 @@ export async function GET(req: Request) {
             : null;
 
       /*
+      * 7D CHANGE
+      */
+      const change7dPct =
+        row?.change7dPct != null
+          ? Number(row.change7dPct)
+          : null;
+
+
+      /*
        * DOMINANCE
        */
       const dominancePct =
@@ -232,6 +241,7 @@ export async function GET(req: Request) {
         volume24h,
         change24h,
         change24hPct,
+        change7dPct,
         dominancePct,
       };
     }

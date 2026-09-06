@@ -1,3 +1,5 @@
+// src/stores/marketStore.ts
+
 import { create } from "zustand";
 import { loadMarketData } from "@/lib/market/loadMarketData";
 import { authenticatedFetch } from "@/lib/auth/authenticatedFetch";
@@ -21,6 +23,7 @@ export type CryptoAssetStats = {
   price?: number | null;
   change24hPct?: number | null;
   change24h?: number | null;
+  change7dPct?: number | null;
   marketCap?: number | null;
   volume24h?: number | null;
   dominancePct?: number | null;

@@ -1,5 +1,3 @@
-// src/lib/market/loadMarketData.ts
-
 import type {
   CryptoSummary,
   MetalsSummary,
@@ -62,6 +60,11 @@ const CRYPTO_SYMBOLS = [
   "BTC",
   "ETH",
   "XMR",
+] as const;
+
+const METAL_BASES = [
+  "gold",
+  "silver",
 ] as const;
 
 const DEFAULT_CHART_DAYS = 30;
@@ -202,6 +205,80 @@ async function fetchCryptoCharts(
 }
 
 // -----------------------------------------------------------------------------
+// Load metals
+// -----------------------------------------------------------------------------
+
+async function fetchMetalsSummary(
+  currency: MarketCurrency
+): Promise<MetalsSummary> {
+  /*
+   * /api/metals/summary accepts a
+   * single base at a time.
+   *
+   * Therefore we explicitly request
+   * both Gold (XAU) and Silver (XAG)
+   * and combine their items.
+   *
+   * This is important because omitting
+   * `base` causes the API route to
+   * default to XAU.
+   */
+  const results =
+    await Promise.all(
+      METAL_BASES.map(
+        async (metal) => {
+          const params =
+            new URLSearchParams();
+
+          params.set(
+            "base",
+            metal
+          );
+
+          params.set(
+            "currency",
+            currency
+          );
+
+          const url =
+            `/api/metals/summary?${params.toString()}`;
+
+          return fetchJson<MetalsSummary>(
+            url
+          );
+        }
+      )
+    );
+
+  /*
+   * Preserve the MetalsSummary shape
+   * already consumed throughout the app.
+   *
+   * The important part for MarketList
+   * is that `items` now contains both
+   * the XAU and XAG entries.
+   */
+  const items =
+    results.flatMap(
+      (result) =>
+        Array.isArray(result?.items)
+          ? result.items
+          : []
+    );
+
+  /*
+   * Preserve any additional metadata
+   * from the first response while
+   * replacing items with the combined
+   * Gold + Silver collection.
+   */
+  return {
+    ...(results[0] ?? {}),
+    items,
+  };
+}
+
+// -----------------------------------------------------------------------------
 // Load market data
 // -----------------------------------------------------------------------------
 
@@ -220,8 +297,18 @@ export async function loadMarketData(
   const cryptoUrl =
     `/api/crypto/summary?currency=${currencyParam}`;
 
-  const metalsUrl =
-    `/api/metals/summary?base=gold&currency=${currencyParam}`;
+  /*
+   * Metals are loaded through
+   * fetchMetalsSummary() because the
+   * API requires one base per request.
+   *
+   * Do not use:
+   *
+   *   /api/metals/summary?currency=...
+   *
+   * by itself because that endpoint
+   * defaults to XAU.
+   */
 
   // ---------------------------------------------------------------------------
   // Load summaries and charts
@@ -236,8 +323,8 @@ export async function loadMarketData(
       cryptoUrl
     ),
 
-    fetchJson<MetalsSummary>(
-      metalsUrl
+    fetchMetalsSummary(
+      currency
     ),
 
     fetchCryptoCharts(
