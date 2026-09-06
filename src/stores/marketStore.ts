@@ -56,6 +56,9 @@ export type MetalsSummaryItem = {
   currency?: string;
   change?: number | null;
   percentChange?: number | null;
+  change24h?: number | null;
+  change24hPct?: number | null;
+  change7dPct?: number | null;
   open?: number | null;
   high?: number | null;
   low?: number | null;
