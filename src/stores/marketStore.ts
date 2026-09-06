@@ -422,6 +422,109 @@ async function fetchMetalSummary(
   };
 }
 
+/*
+ * Normalize the crypto stats returned by loadMarketData() into the
+ * CoinStats shape used throughout the application.
+ *
+ * The backend summary uses:
+ *   price
+ *   marketCap
+ *   volume24h
+ *
+ * while CoinStats uses:
+ *   priceUsd
+ *   marketCapUsd
+ *   volume24hUsd
+ *
+ * Keep both forms supported so the store remains compatible with the
+ * existing loader and API response shapes.
+ */
+function normalizeCoinStats(
+  stats:
+    | CoinStats
+    | CryptoAssetStats
+    | null
+    | undefined
+): CoinStats | null {
+  if (!stats) {
+    return null;
+  }
+
+  const source =
+    stats as CoinStats &
+      CryptoAssetStats;
+
+  return {
+    priceUsd:
+      Number.isFinite(
+        Number(source.priceUsd)
+      )
+        ? Number(source.priceUsd)
+        : Number.isFinite(
+            Number(source.price)
+          )
+          ? Number(source.price)
+          : null,
+
+    change24hPct:
+      Number.isFinite(
+        Number(source.change24hPct)
+      )
+        ? Number(
+            source.change24hPct
+          )
+        : null,
+
+    change24h:
+      Number.isFinite(
+        Number(source.change24h)
+      )
+        ? Number(
+            source.change24h
+          )
+        : null,
+
+    marketCapUsd:
+      Number.isFinite(
+        Number(source.marketCapUsd)
+      )
+        ? Number(
+            source.marketCapUsd
+          )
+        : Number.isFinite(
+            Number(source.marketCap)
+          )
+          ? Number(
+              source.marketCap
+            )
+          : null,
+
+    volume24hUsd:
+      Number.isFinite(
+        Number(source.volume24hUsd)
+      )
+        ? Number(
+            source.volume24hUsd
+          )
+        : Number.isFinite(
+            Number(source.volume24h)
+          )
+          ? Number(
+              source.volume24h
+            )
+          : null,
+
+    dominancePct:
+      Number.isFinite(
+        Number(source.dominancePct)
+      )
+        ? Number(
+            source.dominancePct
+          )
+        : null,
+  };
+}
+
 const initialState = {
   currency:
     "usd" as MarketCurrency,
@@ -567,7 +670,9 @@ export const useMarketStore =
 
             set({
               [`${prefix}Stats`]:
-                data,
+                normalizeCoinStats(
+                  data
+                ),
 
               [`${prefix}Loading`]:
                 false,
@@ -649,10 +754,9 @@ export const useMarketStore =
 
             try {
               /*
-               * loadMarketData() already loads the individual crypto
-               * stats. Keep those stats in both their dedicated store
-               * fields and the normalized cryptoSummary fields used by
-               * MarketList.
+               * Keep the existing loadMarketData() behavior intact.
+               * It continues loading crypto summaries, individual crypto
+               * stats, metals, and charts.
                */
               const data =
                 await loadMarketData(
@@ -666,44 +770,118 @@ export const useMarketStore =
               }
 
               /*
-               * Store the individual stats so the asset pages and
-               * dashboard are backed by the same data.
+               * Normalize the individual crypto stats before putting
+               * them into the dedicated store fields consumed by
+               * CryptoTopTiles.
                */
-              set({
-                bitcoinStats:
-                  data.bitcoinStats,
+              const bitcoinStats =
+                normalizeCoinStats(
+                  data.bitcoinStats
+                );
 
-                ethereumStats:
-                  data.ethereumStats,
+              const ethereumStats =
+                normalizeCoinStats(
+                  data.ethereumStats
+                );
 
-                moneroStats:
-                  data.moneroStats,
-              });
+              const moneroStats =
+                normalizeCoinStats(
+                  data.moneroStats
+                );
 
               /*
-               * MarketList reads:
+               * Preserve the existing crypto summary while ensuring
+               * MarketList has the stats it expects.
                *
-               *   cryptoSummary.bitcoin_stats
-               *   cryptoSummary.ethereum_stats
-               *   cryptoSummary.monero_stats
-               *
-               * Merge the stats returned by loadMarketData() into the
-               * summary so dominance is available immediately.
+               * The dedicated CoinStats fields are also preserved
+               * separately for CryptoTopTiles and other consumers.
                */
-              const cryptoSummary = {
-                ...data.cryptoSummary,
+              const cryptoSummary: CryptoSummary =
+                {
+                  ...data.cryptoSummary,
 
-                bitcoin_stats:
-                  data.bitcoinStats,
+                  bitcoin_stats:
+                    data.cryptoSummary
+                      ?.bitcoin_stats ??
+                    (
+                      bitcoinStats
+                        ? {
+                            price:
+                              bitcoinStats.priceUsd,
+                            change24hPct:
+                              bitcoinStats.change24hPct,
+                            change24h:
+                              bitcoinStats.change24h,
+                            marketCap:
+                              bitcoinStats.marketCapUsd,
+                            volume24h:
+                              bitcoinStats.volume24hUsd,
+                            dominancePct:
+                              bitcoinStats.dominancePct,
+                          }
+                        : undefined
+                    ),
 
-                ethereum_stats:
-                  data.ethereumStats,
+                  ethereum_stats:
+                    data.cryptoSummary
+                      ?.ethereum_stats ??
+                    (
+                      ethereumStats
+                        ? {
+                            price:
+                              ethereumStats.priceUsd,
+                            change24hPct:
+                              ethereumStats.change24hPct,
+                            change24h:
+                              ethereumStats.change24h,
+                            marketCap:
+                              ethereumStats.marketCapUsd,
+                            volume24h:
+                              ethereumStats.volume24hUsd,
+                            dominancePct:
+                              ethereumStats.dominancePct,
+                          }
+                        : undefined
+                    ),
 
-                monero_stats:
-                  data.moneroStats,
-              };
+                  monero_stats:
+                    data.cryptoSummary
+                      ?.monero_stats ??
+                    (
+                      moneroStats
+                        ? {
+                            price:
+                              moneroStats.priceUsd,
+                            change24hPct:
+                              moneroStats.change24hPct,
+                            change24h:
+                              moneroStats.change24h,
+                            marketCap:
+                              moneroStats.marketCapUsd,
+                            volume24h:
+                              moneroStats.volume24hUsd,
+                            dominancePct:
+                              moneroStats.dominancePct,
+                          }
+                        : undefined
+                    ),
+                };
 
               set({
+                /*
+                 * These are the fields CryptoTopTiles already expects.
+                 * This is the critical fix.
+                 */
+                bitcoinStats,
+
+                ethereumStats,
+
+                moneroStats,
+
+                /*
+                 * Keep the normalized summary for MarketList and
+                 * existing summary consumers.
+                 */
                 cryptoSummary,
 
                 metalsSummary:
