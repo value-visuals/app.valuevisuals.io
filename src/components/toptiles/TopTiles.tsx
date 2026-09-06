@@ -196,113 +196,112 @@ export default function TopTiles() {
   ]);
 
   const fmt = (
-    n?: number
-  ) =>
-    typeof n === "number"
-      ? new Intl.NumberFormat(
-          undefined,
-          {
-            style: "currency",
-            currency,
-          }
-        ).format(n)
-      : undefined;
+  n?: number | null
+) =>
+  typeof n === "number"
+    ? new Intl.NumberFormat(
+        undefined,
+        {
+          style: "currency",
+          currency,
+        }
+      ).format(n)
+    : undefined;
 
-  const capFullFmt = (
-    n?: number
-  ) =>
-    typeof n === "number"
-      ? new Intl.NumberFormat(
-          undefined,
-          {
-            style: "currency",
-            currency,
-            maximumFractionDigits: 0,
-          }
-        ).format(n)
-      : undefined;
+const capFullFmt = (
+  n?: number | null
+) =>
+  typeof n === "number"
+    ? new Intl.NumberFormat(
+        undefined,
+        {
+          style: "currency",
+          currency,
+          maximumFractionDigits: 0,
+        }
+      ).format(n)
+    : undefined;
 
   /*
    * Truncating compact currency formatter
    * (floors to 1 decimal).
    */
   function compactTruncCurrency(
-    n?: number
-  ): string | undefined {
-    if (
-      typeof n !== "number"
-    ) {
-      return undefined;
-    }
-
-    const abs =
-      Math.abs(n);
-
-    const units: Array<{
-      div: number;
-      suffix: string;
-    }> = [
-      {
-        div: 1e12,
-        suffix: "T",
-      },
-      {
-        div: 1e9,
-        suffix: "B",
-      },
-      {
-        div: 1e6,
-        suffix: "M",
-      },
-      {
-        div: 1e3,
-        suffix: "K",
-      },
-    ];
-
-    for (
-      const {
-        div,
-        suffix,
-      } of units
-    ) {
-      if (abs >= div) {
-        const raw =
-          n / div;
-
-        const floored =
-          Math.floor(
-            raw * 10
-          ) / 10;
-
-        const formatted =
-          new Intl.NumberFormat(
-            undefined,
-            {
-              style: "currency",
-              currency,
-              minimumFractionDigits:
-                floored % 1 ===
-                0
-                  ? 0
-                  : 1,
-              maximumFractionDigits: 1,
-            }
-          ).format(floored);
-
-        return `${formatted}${suffix}`;
-      }
-    }
-
-    return new Intl.NumberFormat(
-      undefined,
-      {
-        style: "currency",
-        currency,
-        maximumFractionDigits: 2,
-      }
-    ).format(n);
+  n?: number | null
+): string | undefined {
+  if (
+    typeof n !== "number"
+  ) {
+    return undefined;
   }
+
+  const abs =
+    Math.abs(n);
+
+  const units: Array<{
+    div: number;
+    suffix: string;
+  }> = [
+    {
+      div: 1e12,
+      suffix: "T",
+    },
+    {
+      div: 1e9,
+      suffix: "B",
+    },
+    {
+      div: 1e6,
+      suffix: "M",
+    },
+    {
+      div: 1e3,
+      suffix: "K",
+    },
+  ];
+
+  for (
+    const {
+      div,
+      suffix,
+    } of units
+  ) {
+    if (abs >= div) {
+      const raw =
+        n / div;
+
+      const floored =
+        Math.floor(
+          raw * 10
+        ) / 10;
+
+      const formatted =
+        new Intl.NumberFormat(
+          undefined,
+          {
+            style: "currency",
+            currency,
+            minimumFractionDigits:
+              floored % 1 === 0
+                ? 0
+                : 1,
+            maximumFractionDigits: 1,
+          }
+        ).format(floored);
+
+      return `${formatted}${suffix}`;
+    }
+  }
+
+  return new Intl.NumberFormat(
+    undefined,
+    {
+      style: "currency",
+      currency,
+      maximumFractionDigits: 2,
+    }
+  ).format(n);
+}
 
   const goldPrice =
     getGoldPrice(

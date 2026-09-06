@@ -1,7 +1,13 @@
+// components/toptiles/CryptoTopTiles.tsx
+
 "use client";
 
 import { useEffect } from "react";
+
 import TopTile from "./TopTile";
+
+import { useCurrency } from "../Currency";
+
 import {
   useMarketStore,
   type CoinStats,
@@ -25,47 +31,27 @@ const assetConfig: Record<
       | "bitcoinStats"
       | "ethereumStats"
       | "moneroStats";
-    loadingKey:
-      | "bitcoinLoading"
-      | "ethereumLoading"
-      | "moneroLoading";
-    errorKey:
-      | "bitcoinError"
-      | "ethereumError"
-      | "moneroError";
-    fetchKey:
-      | "fetchBitcoinStats"
-      | "fetchEthereumStats"
-      | "fetchMoneroStats";
   }
 > = {
   bitcoin: {
     symbol: "BTC",
     statsKey: "bitcoinStats",
-    loadingKey: "bitcoinLoading",
-    errorKey: "bitcoinError",
-    fetchKey: "fetchBitcoinStats",
   },
 
   ethereum: {
     symbol: "ETH",
     statsKey: "ethereumStats",
-    loadingKey: "ethereumLoading",
-    errorKey: "ethereumError",
-    fetchKey: "fetchEthereumStats",
   },
 
   monero: {
     symbol: "XMR",
     statsKey: "moneroStats",
-    loadingKey: "moneroLoading",
-    errorKey: "moneroError",
-    fetchKey: "fetchMoneroStats",
   },
 };
 
 function formatCurrency(
-  value: number | null | undefined
+  value: number | null | undefined,
+  currency: string
 ) {
   if (
     value == null ||
@@ -74,11 +60,14 @@ function formatCurrency(
     return "—";
   }
 
-  return new Intl.NumberFormat(undefined, {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: 0,
-  }).format(value);
+  return new Intl.NumberFormat(
+    undefined,
+    {
+      style: "currency",
+      currency,
+      maximumFractionDigits: 0,
+    }
+  ).format(value);
 }
 
 function formatPercent(
@@ -91,7 +80,9 @@ function formatPercent(
     return "—";
   }
 
-  return `${(value * 100).toFixed(2)}%`;
+  return `${(
+    value * 100
+  ).toFixed(2)}%`;
 }
 
 function getChangeFraction(
@@ -113,38 +104,151 @@ export default function CryptoTopTiles({
   asset,
   className = "",
 }: CryptoTopTilesProps) {
-  const config = assetConfig[asset];
+  const { currency } =
+    useCurrency();
 
-  const stats = useMarketStore(
-    (state) =>
-      state[config.statsKey]
-  );
+  const config =
+    assetConfig[asset];
 
-  const loading = useMarketStore(
-    (state) =>
-      state[config.loadingKey]
-  );
+  /*
+   * Same currency-aware summary
+   * used by the dashboard TopTiles.
+   */
+  const cryptoSummary =
+    useMarketStore(
+      (state) =>
+        state.cryptoSummary
+    );
 
-  const error = useMarketStore(
-    (state) =>
-      state[config.errorKey]
-  );
+  const cryptoError =
+    useMarketStore(
+      (state) =>
+        state.cryptoError
+    );
 
-  const fetchStats = useMarketStore(
-    (state) =>
-      state[config.fetchKey]
-  );
+  const fetchMarketData =
+    useMarketStore(
+      (state) =>
+        state.fetchMarketData
+    );
 
+  /*
+   * Keep the existing stats for
+   * percentage change and dominance
+   * while we transition the currency
+   * values to cryptoSummary.
+   */
+  const stats =
+    useMarketStore(
+      (state) =>
+        state[config.statsKey]
+    );
+
+  const fetchStats =
+    asset === "bitcoin"
+      ? useMarketStore(
+          (state) =>
+            state.fetchBitcoinStats
+        )
+      : asset === "ethereum"
+        ? useMarketStore(
+            (state) =>
+              state.fetchEthereumStats
+          )
+        : useMarketStore(
+            (state) =>
+              state.fetchMoneroStats
+          );
+
+  const curKey =
+    currency.toLowerCase() as
+      | "usd"
+      | "eur"
+      | "gbp";
+
+  /*
+   * Fetch the same currency-aware
+   * summary used by dashboard TopTiles.
+   */
+  useEffect(() => {
+    void fetchMarketData(
+      curKey
+    );
+  }, [
+    curKey,
+    fetchMarketData,
+  ]);
+
+  /*
+   * Keep loading the existing
+   * individual stats endpoint for
+   * change/dominance.
+   */
   useEffect(() => {
     if (!stats) {
-      fetchStats();
+      void fetchStats();
     }
-  }, [stats, fetchStats]);
+  }, [
+    stats,
+    fetchStats,
+  ]);
 
-  const changeFraction =
+  /*
+   * Currency-aware values from
+   * cryptoSummary.
+   */
+  const price =
+    cryptoSummary?.[
+      asset
+    ]?.[curKey];
+
+  const currencyStats =
+    cryptoSummary?.[
+      `${asset}_stats`
+    ] as
+      | {
+          price?: number | null;
+          marketCap?:
+            | number
+            | null;
+          volume24h?:
+            | number
+            | null;
+          change24h?:
+            | number
+            | null;
+          change24hPct?:
+            | number
+            | null;
+          dominancePct?:
+            | number
+            | null;
+        }
+      | undefined;
+
+  const marketCap =
+    currencyStats?.marketCap ??
+    null;
+
+  const volume24h =
+    currencyStats?.volume24h ??
+    null;
+
+  /*
+   * Keep the existing change/dominance
+   * behavior.
+   */
+  const change =
+    currencyStats?.change24h ??
     getChangeFraction(stats);
 
-  const hasError = !!error;
+  const dominance =
+    currencyStats?.dominancePct ??
+    stats?.dominancePct ??
+    null;
+
+  const hasError =
+    !!cryptoError;
 
   return (
     <div
@@ -152,42 +256,37 @@ export default function CryptoTopTiles({
     >
       <TopTile
         label={`${config.symbol} Price`}
-        value={
-          formatCurrency(
-            stats?.priceUsd
-          )
-        }
-        change={changeFraction}
+        value={formatCurrency(
+          price,
+          currency
+        )}
+        change={change}
         error={hasError}
       />
 
       <TopTile
         label={`${config.symbol} Market Cap`}
-        value={
-          formatCurrency(
-            stats?.marketCapUsd
-          )
-        }
+        value={formatCurrency(
+          marketCap,
+          currency
+        )}
         error={hasError}
       />
 
       <TopTile
         label={`${config.symbol} 24h Volume`}
-        value={
-          formatCurrency(
-            stats?.volume24hUsd
-          )
-        }
+        value={formatCurrency(
+          volume24h,
+          currency
+        )}
         error={hasError}
       />
 
       <TopTile
         label={`${config.symbol} Dominance`}
-        value={
-          formatPercent(
-            stats?.dominancePct
-          )
-        }
+        value={formatPercent(
+          dominance
+        )}
         error={hasError}
       />
     </div>

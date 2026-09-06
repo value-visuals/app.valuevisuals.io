@@ -1,75 +1,279 @@
 // src/app/api/crypto/summary/route.ts
+
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { getApiUrl } from "@/lib/getApiUrl";
 
-export const dynamic = 'force-dynamic';
-export const fetchCache = 'force-no-store';
+export const dynamic = "force-dynamic";
+export const fetchCache = "force-no-store";
 export const revalidate = 60;
-export const runtime = "nodejs"; // ensure Node runtime for server fetch
+export const runtime = "nodejs";
 
 async function getAuthHeader(req: Request) {
-  const hdr = req.headers.get("authorization");
-  if (hdr?.startsWith("Bearer ")) return hdr;
+  const hdr =
+    req.headers.get("authorization");
 
-  const store = await cookies(); // async in newer Next
+  if (hdr?.startsWith("Bearer ")) {
+    return hdr;
+  }
+
+  const store = await cookies();
+
   const token =
     store.get("__session")?.value ||
     store.get("idToken")?.value ||
     undefined;
 
-  return token ? `Bearer ${token}` : undefined;
+  return token
+    ? `Bearer ${token}`
+    : undefined;
 }
 
-// src/app/api/crypto/summary/route.ts
 export async function GET(req: Request) {
   try {
     const API_BASE = getApiUrl();
     const auth = await getAuthHeader(req);
 
-    const { searchParams } = new URL(req.url);
-    const symbols = searchParams.get("symbols") ?? "BTC,ETH";
-    const currency = (searchParams.get("currency") ?? "USD").toUpperCase(); // <- NEW
-    const curKey = currency.toLowerCase(); // "usd" | "eur" | "gbp"
+    if (!auth) {
+      return NextResponse.json(
+        {
+          error:
+            "Missing Authorization bearer token",
+        },
+        {
+          status: 401,
+        }
+      );
+    }
 
-    // forward currency to backend
-    const [summaryRes, globalRes] = await Promise.all([
+    const { searchParams } =
+      new URL(req.url);
+
+    const symbols =
+      searchParams.get("symbols") ??
+      "BTC,ETH,XMR";
+
+    const currency =
+      (
+        searchParams.get("currency") ??
+        "USD"
+      ).toUpperCase();
+
+    const curKey =
+      currency.toLowerCase();
+
+    const [
+      summaryRes,
+      globalRes,
+    ] = await Promise.all([
       fetch(
-        `${API_BASE}/api/crypto/summary?symbols=${encodeURIComponent(symbols)}&currency=${encodeURIComponent(currency)}`,
-        { headers: { Authorization: auth! }, next: { revalidate } as any }
+        `${API_BASE}/api/crypto/summary?symbols=${encodeURIComponent(
+          symbols
+        )}&currency=${encodeURIComponent(
+          currency
+        )}`,
+        {
+          headers: {
+            Authorization: auth,
+          },
+
+          // @ts-ignore
+          next: {
+            revalidate,
+          },
+        }
       ),
+
       fetch(
-        `${API_BASE}/api/crypto/global?currency=${encodeURIComponent(currency)}`,
-        { headers: { Authorization: auth! }, next: { revalidate } as any }
+        `${API_BASE}/api/crypto/global?currency=${encodeURIComponent(
+          currency
+        )}`,
+        {
+          headers: {
+            Authorization: auth,
+          },
+
+          // @ts-ignore
+          next: {
+            revalidate,
+          },
+        }
       ),
     ]);
 
-    const summary = await summaryRes.json(); 
-    const global = await globalRes.json();  
-
-    // build dynamic currency keys for backward-compat shape
-    const slugMap: Record<string, string> = { BTC: "bitcoin", ETH: "ethereum" };
-    const out: Record<string, any> = {};
-
-    for (const row of summary.data || []) {
-      const sym = String(row.symbol || "").toUpperCase();
-      const slug = slugMap[sym] ?? sym.toLowerCase();
-      const val =
-        typeof row.price === "number" ? row.price :
-        typeof row.priceUsd === "number" ? row.priceUsd : null;
-      out[slug] = { [curKey]: val }; 
+    if (!summaryRes.ok) {
+      throw new Error(
+        `Crypto summary request failed: ${summaryRes.status}`
+      );
     }
 
-    // global cap with dynamic currency key
-    const capVal =
-      typeof global.marketCap === "number" ? global.marketCap :
-      typeof global.marketCapUsd === "number" ? global.marketCapUsd : null;
+    const summary =
+      await summaryRes.json();
 
-    out.global_market_cap = { [curKey]: capVal };
+    const global =
+      globalRes.ok
+        ? await globalRes.json()
+        : null;
 
-    return NextResponse.json(out, { status: 200 });
+    const slugMap: Record<
+      string,
+      string
+    > = {
+      BTC: "bitcoin",
+      ETH: "ethereum",
+      XMR: "monero",
+    };
+
+    const out: Record<
+      string,
+      any
+    > = {};
+
+    for (
+      const row of
+        summary?.data ?? []
+    ) {
+      const sym =
+        String(
+          row?.symbol ?? ""
+        ).toUpperCase();
+
+      const slug =
+        slugMap[sym] ??
+        sym.toLowerCase();
+
+      /*
+       * PRICE
+       *
+       * Prefer the backend's currency-aware
+       * `price` field.
+       */
+      const price =
+        typeof row?.price ===
+        "number"
+          ? row.price
+          : typeof row?.priceUsd ===
+              "number"
+            ? row.priceUsd
+            : null;
+
+      /*
+       * MARKET CAP
+       *
+       * Prefer currency-aware `marketCap`.
+       */
+      const marketCap =
+        typeof row?.marketCap ===
+        "number"
+          ? row.marketCap
+          : typeof row?.marketCapUsd ===
+              "number"
+            ? row.marketCapUsd
+            : null;
+
+      /*
+       * 24H VOLUME
+       *
+       * Prefer currency-aware `volume24h`.
+       */
+      const volume24h =
+        typeof row?.volume24h ===
+        "number"
+          ? row.volume24h
+          : typeof row?.volume24hUsd ===
+              "number"
+            ? row.volume24hUsd
+            : null;
+
+      /*
+       * 24H CHANGE
+       */
+      const change24hPct =
+        row?.change24hPct != null
+          ? Number(
+              row.change24hPct
+            )
+          : null;
+
+      const change24h =
+        row?.change24h != null
+          ? Number(
+              row.change24h
+            )
+          : change24hPct != null
+            ? change24hPct / 100
+            : null;
+
+      /*
+       * DOMINANCE
+       */
+      const dominancePct =
+        row?.dominancePct != null
+          ? Number(
+              row.dominancePct
+            )
+          : null;
+
+      /*
+       * Keep the existing price shape
+       * that your dashboard already uses.
+       */
+      out[slug] = {
+        [curKey]: price,
+      };
+
+      /*
+       * Add currency-aware stats for
+       * the individual crypto pages.
+       */
+      out[`${slug}_stats`] = {
+        price,
+        marketCap,
+        volume24h,
+        change24h,
+        change24hPct,
+        dominancePct,
+      };
+    }
+
+    /*
+     * Global market cap.
+     */
+    const globalMarketCap =
+      typeof global?.marketCap ===
+      "number"
+        ? global.marketCap
+        : typeof global?.marketCapUsd ===
+            "number"
+          ? global.marketCapUsd
+          : null;
+
+    out.global_market_cap = {
+      [curKey]:
+        globalMarketCap,
+    };
+
+    return NextResponse.json(
+      out,
+      {
+        status: 200,
+      }
+    );
   } catch (err: any) {
-    console.error("[/api/crypto/summary] proxy failed:", err?.message || err);
-    return NextResponse.json({ error: "Failed", detail: err?.message }, { status: 500 });  
+    console.error(
+      "[/api/crypto/summary] proxy failed:",
+      err?.message || err
+    );
+
+    return NextResponse.json(
+      {
+        error: "Failed",
+        detail:
+          err?.message,
+      },
+      {
+        status: 500,
+      }
+    );
   }
 }
