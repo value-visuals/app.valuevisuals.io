@@ -341,21 +341,80 @@ export const useMarketStore = create<MarketState>((set, get) => {
       });
 
       try {
-        const { cryptoSummary, metalsSummary } =
-          await loadMarketData(requested);
+        const { cryptoSummary, metalsSummary } = await loadMarketData(requested);
+
 
         if (id !== marketId) return;
 
         set({
           cryptoSummary,
           metalsSummary,
+
+          bitcoinStats:
+            cryptoSummary?.bitcoin_stats
+              ? {
+                  priceUsd:
+                    cryptoSummary.bitcoin_stats.price,
+                  change24hPct:
+                    cryptoSummary.bitcoin_stats.change24hPct,
+                  change24h:
+                    cryptoSummary.bitcoin_stats.change24h,
+                  marketCapUsd:
+                    cryptoSummary.bitcoin_stats.marketCap,
+                  volume24hUsd:
+                    cryptoSummary.bitcoin_stats.volume24h,
+                  dominancePct:
+                    cryptoSummary.bitcoin_stats.dominancePct,
+                }
+              : null,
+
+          ethereumStats:
+            cryptoSummary?.ethereum_stats
+              ? {
+                  priceUsd:
+                    cryptoSummary.ethereum_stats.price,
+                  change24hPct:
+                    cryptoSummary.ethereum_stats.change24hPct,
+                  change24h:
+                    cryptoSummary.ethereum_stats.change24h,
+                  marketCapUsd:
+                    cryptoSummary.ethereum_stats.marketCap,
+                  volume24hUsd:
+                    cryptoSummary.ethereum_stats.volume24h,
+                  dominancePct:
+                    cryptoSummary.ethereum_stats.dominancePct,
+                }
+              : null,
+
+          moneroStats:
+            cryptoSummary?.monero_stats
+              ? {
+                  priceUsd:
+                    cryptoSummary.monero_stats.price,
+                  change24hPct:
+                    cryptoSummary.monero_stats.change24hPct,
+                  change24h:
+                    cryptoSummary.monero_stats.change24h,
+                  marketCapUsd:
+                    cryptoSummary.monero_stats.marketCap,
+                  volume24hUsd:
+                    cryptoSummary.monero_stats.volume24h,
+                  dominancePct:
+                    cryptoSummary.monero_stats.dominancePct,
+                }
+              : null,
+
           cryptoLoading: false,
           metalsLoading: false,
           cryptoError: null,
           metalsError: null,
           lastCryptoUpdate: Date.now(),
           lastMetalsUpdate: Date.now(),
+          lastBitcoinUpdate: Date.now(),
+          lastEthereumUpdate: Date.now(),
+          lastMoneroUpdate: Date.now(),
         });
+
       } catch (error) {
         if (id !== marketId) return;
 

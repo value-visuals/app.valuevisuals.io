@@ -7,6 +7,7 @@ import {
   useMarketStore,
   type CryptoAssetSummary,
   type CryptoAssetStats,
+  type CoinStats,
   type MetalsSummaryItem,
 } from "@/stores/marketStore";
 
@@ -30,7 +31,6 @@ type MarketRow = {
   volume24h: number | null;
   dominancePct: number | null;
 };
-
 
 /* =========================================================
  * Helpers
@@ -67,6 +67,29 @@ function getCurrencyValue(
   );
 }
 
+/*
+ * CoinStats.dominancePct is stored as a fraction.
+ *
+ * Example:
+ *   0.6123 = 61.23%
+ *
+ * MarketRow.dominancePct is displayed directly
+ * by formatPercent(), so convert the fraction
+ * into the percentage value expected there.
+ */
+function getExistingDominancePct(
+  stats: CoinStats | null
+): number | null {
+  const dominance =
+    toNumber(stats?.dominancePct);
+
+  if (dominance === null) {
+    return null;
+  }
+
+  return dominance * 100;
+}
+
 /* =========================================================
  * Crypto
  * ======================================================= */
@@ -76,7 +99,8 @@ function createCryptoRow(
   summary: ReturnType<
     typeof useMarketStore.getState
   >["cryptoSummary"],
-  currency: string
+  currency: string,
+  existingStats: CoinStats | null
 ): MarketRow | null {
   if (!summary) {
     return null;
@@ -125,6 +149,28 @@ function createCryptoRow(
       currency
     );
 
+  /*
+   * IMPORTANT:
+   *
+   * cryptoSummary may contain dominancePct,
+   * but the existing CoinStats object is the
+   * same source already used by CryptoTopTiles.
+   *
+   * CoinStats.dominancePct is a fraction
+   * (for example 0.6123), while MarketList's
+   * formatPercent expects 61.23.
+   *
+   * Prefer the existing CoinStats value so
+   * MarketList mirrors CryptoTopTiles.
+   */
+  const dominancePct =
+    getExistingDominancePct(
+      existingStats
+    ) ??
+    toNumber(
+      stats?.dominancePct
+    );
+
   return {
     id: name,
 
@@ -158,10 +204,7 @@ function createCryptoRow(
         stats?.volume24h
       ),
 
-    dominancePct:
-      toNumber(
-        stats?.dominancePct
-      ),
+    dominancePct,
   };
 }
 
@@ -480,6 +523,26 @@ export default function MarketList({
       (state) => state.metalsSummary
     );
 
+  /*
+   * These are the SAME individual CoinStats
+   * objects already used by CryptoTopTiles
+   * for dominance.
+   */
+  const bitcoinStats =
+    useMarketStore(
+      (state) => state.bitcoinStats
+    );
+
+  const ethereumStats =
+    useMarketStore(
+      (state) => state.ethereumStats
+    );
+
+  const moneroStats =
+    useMarketStore(
+      (state) => state.moneroStats
+    );
+
   const cryptoLoading =
     useMarketStore(
       (state) => state.cryptoLoading
@@ -509,21 +572,24 @@ export default function MarketList({
         createCryptoRow(
           "bitcoin",
           cryptoSummary,
-          currency
+          currency,
+          bitcoinStats
         );
 
       const ethereum =
         createCryptoRow(
           "ethereum",
           cryptoSummary,
-          currency
+          currency,
+          ethereumStats
         );
 
       const monero =
         createCryptoRow(
           "monero",
           cryptoSummary,
-          currency
+          currency,
+          moneroStats
         );
 
       const gold =
@@ -563,6 +629,9 @@ export default function MarketList({
       cryptoSummary,
       metalsSummary,
       currency,
+      bitcoinStats,
+      ethereumStats,
+      moneroStats,
     ]);
 
   const loading =

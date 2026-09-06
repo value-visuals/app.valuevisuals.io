@@ -1,4 +1,5 @@
 import type {
+  CoinStats,
   CryptoSummary,
   MetalsSummary,
   MarketCurrency,
@@ -50,6 +51,26 @@ export type LoadResult = {
     string,
     CryptoChart
   >;
+
+  /*
+   * Individual crypto stats.
+   *
+   * These use the same existing endpoints
+   * used by the individual crypto pages
+   * and CryptoTopTiles.
+   *
+   * CoinStats includes:
+   *
+   *   priceUsd
+   *   change24hPct
+   *   change24h
+   *   marketCapUsd
+   *   volume24hUsd
+   *   dominancePct
+   */
+  bitcoinStats: CoinStats;
+  ethereumStats: CoinStats;
+  moneroStats: CoinStats;
 };
 
 // -----------------------------------------------------------------------------
@@ -112,6 +133,92 @@ async function fetchJson<T>(
   }
 
   return response.json();
+}
+
+// -----------------------------------------------------------------------------
+// Crypto stats loader
+// -----------------------------------------------------------------------------
+
+async function fetchCryptoStats(
+  asset:
+    | "bitcoin"
+    | "ethereum"
+    | "monero",
+  currency: MarketCurrency
+): Promise<CoinStats> {
+  /*
+   * These are the EXISTING endpoints
+   * already used by marketStore.ts.
+   *
+   * Do not use:
+   *
+   *   /api/crypto/btc
+   *   /api/crypto/eth
+   *   /api/crypto/xmr
+   */
+  const params =
+    new URLSearchParams();
+
+  params.set(
+    "currency",
+    currency
+  );
+
+  const url =
+    `/api/crypto/${asset}?${params.toString()}`;
+
+  return fetchJson<CoinStats>(
+    url
+  );
+}
+
+// -----------------------------------------------------------------------------
+// Load all crypto stats
+// -----------------------------------------------------------------------------
+
+async function fetchAllCryptoStats(
+  currency: MarketCurrency
+): Promise<{
+  bitcoinStats: CoinStats;
+  ethereumStats: CoinStats;
+  moneroStats: CoinStats;
+}> {
+  /*
+   * Load the same individual stats
+   * that become available when visiting
+   * /bitcoin, /ethereum and /monero.
+   *
+   * This makes dominance available on
+   * the initial dashboard load instead
+   * of requiring the user to visit each
+   * asset page first.
+   */
+  const [
+    bitcoinStats,
+    ethereumStats,
+    moneroStats,
+  ] = await Promise.all([
+    fetchCryptoStats(
+      "bitcoin",
+      currency
+    ),
+
+    fetchCryptoStats(
+      "ethereum",
+      currency
+    ),
+
+    fetchCryptoStats(
+      "monero",
+      currency
+    ),
+  ]);
+
+  return {
+    bitcoinStats,
+    ethereumStats,
+    moneroStats,
+  };
 }
 
 // -----------------------------------------------------------------------------
@@ -291,7 +398,7 @@ export async function loadMarketData(
     );
 
   // ---------------------------------------------------------------------------
-  // Summary endpoints
+  // Summary endpoint
   // ---------------------------------------------------------------------------
 
   const cryptoUrl =
@@ -311,13 +418,14 @@ export async function loadMarketData(
    */
 
   // ---------------------------------------------------------------------------
-  // Load summaries and charts
+  // Load summaries, individual crypto stats and charts
   // ---------------------------------------------------------------------------
 
   const [
     cryptoSummary,
     metalsSummary,
     cryptoCharts,
+    cryptoStats,
   ] = await Promise.all([
     fetchJson<CryptoSummary>(
       cryptoUrl
@@ -331,6 +439,10 @@ export async function loadMarketData(
       currency,
       DEFAULT_CHART_DAYS
     ),
+
+    fetchAllCryptoStats(
+      currency
+    ),
   ]);
 
   // ---------------------------------------------------------------------------
@@ -341,5 +453,14 @@ export async function loadMarketData(
     cryptoSummary,
     metalsSummary,
     cryptoCharts,
+
+    bitcoinStats:
+      cryptoStats.bitcoinStats,
+
+    ethereumStats:
+      cryptoStats.ethereumStats,
+
+    moneroStats:
+      cryptoStats.moneroStats,
   };
 }
