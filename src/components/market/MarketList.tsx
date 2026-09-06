@@ -2,6 +2,7 @@
 
 import React from "react";
 import Image from "next/image";
+import Link from "next/link";
 
 import {
   useMarketStore,
@@ -11,12 +12,20 @@ import {
   type MetalsSummaryItem,
 } from "@/stores/marketStore";
 
+import MarketChart from "@/components/charts/MarketChart";
+
 /* =========================================================
  * Types
  * ======================================================= */
 
 type MarketRow = {
-  id: string;
+  id:
+    | "bitcoin"
+    | "ethereum"
+    | "monero"
+    | "gold"
+    | "silver";
+
   name: string;
   symbol: string;
   type: "crypto" | "metal";
@@ -150,16 +159,6 @@ function createCryptoRow(
     );
 
   /*
-   * IMPORTANT:
-   *
-   * cryptoSummary may contain dominancePct,
-   * but the existing CoinStats object is the
-   * same source already used by CryptoTopTiles.
-   *
-   * CoinStats.dominancePct is a fraction
-   * (for example 0.6123), while MarketList's
-   * formatPercent expects 61.23.
-   *
    * Prefer the existing CoinStats value so
    * MarketList mirrors CryptoTopTiles.
    */
@@ -269,14 +268,14 @@ function createMetalRow(
 
     change24hPct:
       toNumber(
-        item.percentChange
+        item.percentChange ??
+          item.change24hPct
       ),
 
-    /*
-     * Metals do not currently expose
-     * these crypto-style metrics.
-     */
-    change7dPct: null,
+    change7dPct:
+      toNumber(
+        item.change7dPct
+      ),
 
     marketCap: null,
 
@@ -354,6 +353,17 @@ function formatPercent(
   return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
 }
 
+function formatRawPercent(
+  value: number | null
+): string {
+  if (value === null) {
+    return "—";
+  }
+
+  return `${value.toFixed(2)}%`;
+}
+
+
 /* =========================================================
  * Loading
  * ======================================================= */
@@ -376,26 +386,37 @@ function LoadingRows() {
             sm:px-5
           "
         >
-          <div className="col-span-5 flex items-center gap-3">
+          <div className="col-span-3 flex items-center gap-3">
             <div className="size-8 animate-pulse rounded-full bg-muted" />
 
             <div className="space-y-1.5">
               <div className="h-3 w-24 animate-pulse rounded bg-muted" />
-
               <div className="h-2.5 w-10 animate-pulse rounded bg-muted" />
             </div>
           </div>
 
-          <div className="col-span-3 flex justify-end">
+          <div className="col-span-2 flex justify-end">
             <div className="h-3 w-20 animate-pulse rounded bg-muted" />
           </div>
 
-          <div className="col-span-2 flex justify-end">
+          <div className="col-span-1 flex justify-end">
+            <div className="h-3 w-14 animate-pulse rounded bg-muted" />
+          </div>
+
+          <div className="col-span-1 flex justify-end">
             <div className="h-3 w-14 animate-pulse rounded bg-muted" />
           </div>
 
           <div className="col-span-2 flex justify-end">
+            <div className="h-10 w-24 animate-pulse rounded bg-muted/60" />
+          </div>
+
+          <div className="col-span-2 flex justify-end">
             <div className="h-3 w-20 animate-pulse rounded bg-muted" />
+          </div>
+
+          <div className="col-span-1 flex justify-end">
+            <div className="h-3 w-14 animate-pulse rounded bg-muted" />
           </div>
         </div>
       ))}
@@ -706,7 +727,6 @@ export default function MarketList({
       <Header />
 
       {/* Desktop table header */}
-
       <div
         className="
           hidden
@@ -743,11 +763,15 @@ export default function MarketList({
           7d
         </div>
 
-        <div className="col-span-2 text-right">
-          24h Volume
+        <div className="col-span-2 text-center">
+          7D Chart
         </div>
 
-        <div className="col-span-2 text-right">
+        <div className="col-span-1 text-right">
+          Volume
+        </div>
+
+        <div className="col-span-1 text-right">
           Market Cap
         </div>
 
@@ -826,7 +850,6 @@ function Header() {
         "
       >
         <span className="size-1.5 rounded-full bg-emerald-500" />
-
         Live
       </div>
     </div>
@@ -855,183 +878,199 @@ function MarketRowItem({
     0;
 
   return (
-    <div
+    <Link
+      href={`/dashboard/${asset.id}`}
       className="
-        grid
-        grid-cols-1
-        gap-3
-        px-4
-        py-4
+        block
         transition-colors
         hover:bg-muted/30
-        sm:grid-cols-12
-        sm:items-center
-        sm:gap-4
-        sm:px-5
+        focus-visible:bg-muted/30
+        focus-visible:outline-none
+        focus-visible:ring-2
+        focus-visible:ring-inset
+        focus-visible:ring-ring
       "
     >
-      {/* Asset */}
+      <div
+        className="
+          grid
+          grid-cols-1
+          gap-3
+          px-4
+          py-4
+          sm:grid-cols-12
+          sm:items-center
+          sm:gap-4
+          sm:px-5
+        "
+      >
+        {/* Asset */}
+        <div className="flex min-w-0 items-center gap-3 sm:col-span-3">
+          <span
+            className="
+              hidden
+              w-5
+              shrink-0
+              text-xs
+              tabular-nums
+              text-muted-foreground/60
+              sm:block
+            "
+          >
+            {index + 1}
+          </span>
 
-      <div className="flex min-w-0 items-center gap-3 sm:col-span-3">
-        <span
-          className="
-            hidden
-            w-5
-            shrink-0
-            text-xs
-            tabular-nums
-            text-muted-foreground/60
-            sm:block
-          "
-        >
-          {index + 1}
-        </span>
+          <AssetIcon asset={asset} />
 
-        <AssetIcon asset={asset} />
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="truncate text-sm font-semibold">
+                {asset.name}
+              </span>
 
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <span className="truncate text-sm font-semibold">
-              {asset.name}
-            </span>
+              <span className="text-[10px] font-medium uppercase text-muted-foreground">
+                {asset.symbol}
+              </span>
+            </div>
 
-            <span className="text-[10px] font-medium uppercase text-muted-foreground">
-              {asset.symbol}
-            </span>
-          </div>
-
-          <div className="mt-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
-            {asset.type}
+            <div className="mt-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
+              {asset.type}
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Price */}
+        {/* Price */}
+        <div className="flex items-center justify-between sm:col-span-2 sm:block sm:text-right">
+          <span className="text-xs text-muted-foreground sm:hidden">
+            Price
+          </span>
 
-      <div className="flex items-center justify-between sm:col-span-2 sm:block sm:text-right">
-        <span className="text-xs text-muted-foreground sm:hidden">
-          Price
-        </span>
+          <span className="text-sm font-semibold tabular-nums">
+            {formatPrice(
+              asset.price,
+              currency
+            )}
+          </span>
+        </div>
 
-        <span className="text-sm font-semibold tabular-nums">
-          {formatPrice(
-            asset.price,
-            currency
-          )}
-        </span>
-      </div>
+        {/* 24h */}
+        <div className="flex items-center justify-between sm:col-span-1 sm:block sm:text-right">
+          <span className="text-xs text-muted-foreground sm:hidden">
+            24h
+          </span>
 
-      {/* 24h */}
-
-      <div className="flex items-center justify-between sm:col-span-1 sm:block sm:text-right">
-        <span className="text-xs text-muted-foreground sm:hidden">
-          24h
-        </span>
-
-        <span
-          className={`text-sm font-semibold tabular-nums ${
-            positive24h
-              ? "text-emerald-500"
-              : "text-red-500"
-          }`}
-        >
-          {formatPercent(
-            asset.change24hPct
-          )}
-        </span>
-      </div>
-
-      {/* 7d */}
-
-      <div className="flex items-center justify-between sm:col-span-1 sm:block sm:text-right">
-        <span className="text-xs text-muted-foreground sm:hidden">
-          7d
-        </span>
-
-        {asset.type ===
-        "crypto" ? (
           <span
             className={`text-sm font-semibold tabular-nums ${
-              positive7d
-                ? "text-emerald-500"
-                : "text-red-500"
+              asset.change24hPct === null
+                ? "text-muted-foreground"
+                : positive24h
+                  ? "text-emerald-500"
+                  : "text-red-500"
+            }`}
+          >
+            {formatPercent(
+              asset.change24hPct
+            )}
+          </span>
+        </div>
+
+        {/* 7d */}
+        <div className="flex items-center justify-between sm:col-span-1 sm:block sm:text-right">
+          <span className="text-xs text-muted-foreground sm:hidden">
+            7d
+          </span>
+
+          <span
+            className={`text-sm font-semibold tabular-nums ${
+              asset.change7dPct === null
+                ? "text-muted-foreground"
+                : positive7d
+                  ? "text-emerald-500"
+                  : "text-red-500"
             }`}
           >
             {formatPercent(
               asset.change7dPct
             )}
           </span>
-        ) : (
-          <span className="text-sm font-semibold tabular-nums text-muted-foreground">
-            —
+        </div>
+
+        {/* 7D Chart */}
+        <div className="flex items-center justify-between sm:col-span-2 sm:justify-center">
+          <span className="text-xs text-muted-foreground sm:hidden">
+            7D Chart
           </span>
-        )}
+
+          <div className="w-full max-w-[140px]">
+            <MarketChart
+              asset={asset.id}
+            />
+          </div>
+        </div>
+
+        {/* 24h Volume */}
+        <div className="flex items-center justify-between sm:col-span-1 sm:block sm:text-right">
+          <span className="text-xs text-muted-foreground sm:hidden">
+            Volume
+          </span>
+
+          {asset.type ===
+          "crypto" ? (
+            <span className="text-sm font-medium tabular-nums">
+              {formatCompactCurrency(
+                asset.volume24h,
+                currency
+              )}
+            </span>
+          ) : (
+            <span className="text-sm font-medium tabular-nums text-muted-foreground">
+              —
+            </span>
+          )}
+        </div>
+
+        {/* Market Cap */}
+        <div className="flex items-center justify-between sm:col-span-1 sm:block sm:text-right">
+          <span className="text-xs text-muted-foreground sm:hidden">
+            Market Cap
+          </span>
+
+          {asset.type ===
+          "crypto" ? (
+            <span className="text-sm font-medium tabular-nums">
+              {formatCompactCurrency(
+                asset.marketCap,
+                currency
+              )}
+            </span>
+          ) : (
+            <span className="text-sm font-medium tabular-nums text-muted-foreground">
+              —
+            </span>
+          )}
+        </div>
+
+        {/* Dominance */}
+        <div className="flex items-center justify-between sm:col-span-1 sm:block sm:text-right">
+          <span className="text-xs text-muted-foreground sm:hidden">
+            Dominance
+          </span>
+
+          {asset.type ===
+          "crypto" ? (
+            <span className="text-sm font-medium tabular-nums">
+              {formatRawPercent(
+                asset.dominancePct
+              )}
+            </span>
+          ) : (
+            <span className="text-sm font-medium tabular-nums text-muted-foreground">
+              —
+            </span>
+          )}
+        </div>
       </div>
-
-      {/* 24h Volume */}
-
-      <div className="flex items-center justify-between sm:col-span-2 sm:block sm:text-right">
-        <span className="text-xs text-muted-foreground sm:hidden">
-          24h Volume
-        </span>
-
-        {asset.type ===
-        "crypto" ? (
-          <span className="text-sm font-medium tabular-nums">
-            {formatCompactCurrency(
-              asset.volume24h,
-              currency
-            )}
-          </span>
-        ) : (
-          <span className="text-sm font-medium tabular-nums text-muted-foreground">
-            —
-          </span>
-        )}
-      </div>
-
-      {/* Market Cap */}
-
-      <div className="flex items-center justify-between sm:col-span-2 sm:block sm:text-right">
-        <span className="text-xs text-muted-foreground sm:hidden">
-          Market Cap
-        </span>
-
-        {asset.type ===
-        "crypto" ? (
-          <span className="text-sm font-medium tabular-nums">
-            {formatCompactCurrency(
-              asset.marketCap,
-              currency
-            )}
-          </span>
-        ) : (
-          <span className="text-sm font-medium tabular-nums text-muted-foreground">
-            —
-          </span>
-        )}
-      </div>
-
-      {/* Dominance */}
-
-      <div className="flex items-center justify-between sm:col-span-1 sm:block sm:text-right">
-        <span className="text-xs text-muted-foreground sm:hidden">
-          Dominance
-        </span>
-
-        {asset.type ===
-        "crypto" ? (
-          <span className="text-sm font-medium tabular-nums">
-            {formatPercent(
-              asset.dominancePct
-            )}
-          </span>
-        ) : (
-          <span className="text-sm font-medium tabular-nums text-muted-foreground">
-            —
-          </span>
-        )}
-      </div>
-    </div>
+    </Link>
   );
 }
+
