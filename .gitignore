@@ -1,3 +1,4 @@
 .env
 .next
+.DS_store
 node_modules
