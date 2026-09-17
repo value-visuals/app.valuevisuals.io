@@ -1,4 +1,4 @@
-import TopTiles from "@/components/toptiles/TopTiles";
+//import TopTiles from "@/components/toptiles/TopTiles";
 import {
   CurrencyProvider,
   CurrencyToggle,
@@ -74,7 +74,6 @@ export default function DashboardPage() {
               Market overview
             </h2>
 
-            <TopTiles />
           </section>
 
           {/* Market List */}
