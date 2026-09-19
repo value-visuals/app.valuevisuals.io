@@ -19,6 +19,7 @@ import {
   onAuthStateChanged,
 } from "firebase/auth";
 import { auth } from "@/lib/firebase";
+import { useAuth } from "@/components/auth/AuthProvider";
 import Link from "next/link";
 
 type MsgKind = "success" | "error" | "info";
@@ -47,6 +48,8 @@ const AVAILABLE_INTERESTS = [
 ] as const;
 
 export default function SettingsPage() {
+  const { logout } = useAuth();
+
   const [user, setUser] = React.useState<User | null>(
     auth.currentUser
   );
@@ -492,15 +495,17 @@ export default function SettingsPage() {
         newPassword
       );
 
-      showMsg(
-        "success",
-        "Password updated successfully."
-      );
-
       setPwdForm({
         currentPassword: "",
         newPassword: "",
       });
+
+      /*
+       * Password changes invalidate existing authentication credentials.
+       * End the current application session immediately so the Firebase
+       * client, Next.js session cookie, and backend auth state stay aligned.
+       */
+      await logout(false);
     } catch (err) {
       showMsg(
         "error",
