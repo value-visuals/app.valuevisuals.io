@@ -111,3 +111,7 @@ export const sumBigintWalletField = (
     0n,
   );
 };
+
+export const convertUsd = (n: string | number, type: CoinType) => {
+  return type === "bitcoin" ? toNum(n) / 1e8 : toNum(n) / 1e18;
+};

@@ -3,7 +3,6 @@ import { headers } from "next/headers";
 import { ArrowUpRight, ArrowDownRight } from "lucide-react";
 import PortfolioChart from "@/components/charts/PortfolioChart";
 
-
 export const dynamic = "force-dynamic";
 
 // ======================= Types (string-friendly) =======================
@@ -11,8 +10,8 @@ type Integerish = string | number; // backend may send bigint-as-string
 
 type CoinStats = {
   priceUsd?: number | null;
-  change24h?: number | null;     // fraction (e.g., 0.034)
-  change24hPct?: number | null;  // percent (e.g., 3.4)
+  change24h?: number | null; // fraction (e.g., 0.034)
+  change24hPct?: number | null; // percent (e.g., 3.4)
 };
 
 type WalletStat = {
@@ -40,7 +39,9 @@ type ChartResponse = { range: string; points: ChartPoint[]; note?: string };
 // ======================= Helpers =======================
 const toMs = (t: number | string | Date) =>
   typeof t === "number"
-    ? (t > 1e12 ? t : t * 1000) // seconds→ms if needed
+    ? t > 1e12
+      ? t
+      : t * 1000 // seconds→ms if needed
     : Date.parse(String(t));
 
 const toNum = (v: unknown) => {
@@ -63,7 +64,9 @@ function formatIntegerish(x: Integerish): string {
   const grouped = abs.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
   return neg ? `-${grouped}` : grouped;
 }
-function sats(n: Integerish) { return `${formatIntegerish(n)} sats`; }
+function sats(n: Integerish) {
+  return `${formatIntegerish(n)} sats`;
+}
 
 // ---- ETH formatting (wei -> ETH) with BigInt-safe rounding ----
 function toBigIntClean(x: Integerish): { neg: boolean; abs: bigint } {
@@ -133,7 +136,7 @@ function eth(x: Integerish, places = 6): string {
     return rounded ? `${sign}${intStr}.${rounded} ETH` : `${sign}${intStr} ETH`;
   } else {
     // no decimals
-    if (frac >= 5n * (10n ** 17n)) {
+    if (frac >= 5n * 10n ** 17n) {
       intPart = intPart + 1n; // round half-up
     }
     const sign = neg ? "-" : "";
@@ -149,7 +152,8 @@ function fmtDate(t: number | string): string {
   if (typeof t === "string") {
     if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return t;
     const n = Number(t);
-    if (Number.isFinite(n)) return new Date(n * 1000).toISOString().slice(0, 10);
+    if (Number.isFinite(n))
+      return new Date(n * 1000).toISOString().slice(0, 10);
     const d = new Date(t);
     if (!Number.isNaN(+d)) return d.toISOString().slice(0, 10);
     return t;
@@ -157,11 +161,18 @@ function fmtDate(t: number | string): string {
   return "—";
 }
 
-function Delta({ changeFraction }: { changeFraction: number | null | undefined }) {
-  if (changeFraction == null) return <span className="text-muted-foreground">—</span>;
+function Delta({
+  changeFraction,
+}: {
+  changeFraction: number | null | undefined;
+}) {
+  if (changeFraction == null)
+    return <span className="text-muted-foreground">—</span>;
   const positive = changeFraction >= 0;
   return (
-    <span className={`flex items-center gap-1 ${positive ? "text-green-600" : "text-red-600"}`}>
+    <span
+      className={`flex items-center gap-1 ${positive ? "text-green-600" : "text-red-600"}`}
+    >
       {positive ? <ArrowUpRight size={16} /> : <ArrowDownRight size={16} />}
       {formatPercent(changeFraction)}
     </span>
@@ -189,24 +200,52 @@ async function makeBaseAndHeaders() {
   return { base, forwardHeaders };
 }
 
-async function fetchJSON<T>(base: string, path: string, headers: Record<string,string>) {
+async function fetchJSON<T>(
+  base: string,
+  path: string,
+  headers: Record<string, string>,
+) {
   const res = await fetch(`${base}${path}`, { cache: "no-store", headers });
   let data: T | undefined;
-  try { data = (await res.json()) as T; } catch {}
+  try {
+    data = (await res.json()) as T;
+  } catch {}
   return { ok: res.ok, status: res.status, data };
 }
 
 // ======================= Cross-chain helpers (for comparison) =======================
-const fmtUSD = (n: number) => new Intl.NumberFormat(undefined, { style: "currency", currency: "USD" }).format(n);
+const fmtUSD = (n: number) =>
+  new Intl.NumberFormat(undefined, {
+    style: "currency",
+    currency: "USD",
+  }).format(n);
 
-function sumBigintWalletField(wallets: WalletStat[], key: keyof WalletStat): bigint {
-  const toBig = (x: Integerish) => BigInt(String(typeof x === "string" ? (x.trim() || "0") : Math.trunc(Number(x)) || 0));
-  return wallets.reduce<bigint>((acc, w) => acc + toBig(w[key] as Integerish), 0n);
+function sumBigintWalletField(
+  wallets: WalletStat[],
+  key: keyof WalletStat,
+): bigint {
+  const toBig = (x: Integerish) =>
+    BigInt(
+      String(
+        typeof x === "string" ? x.trim() || "0" : Math.trunc(Number(x)) || 0,
+      ),
+    );
+  return wallets.reduce<bigint>(
+    (acc, w) => acc + toBig(w[key] as Integerish),
+    0n,
+  );
 }
 
-async function getBtcPortfolioUsd(base: string, headers: Record<string, string>) {
+async function getBtcPortfolioUsd(
+  base: string,
+  headers: Record<string, string>,
+) {
   const [summary, stats] = await Promise.all([
-    fetchJSON<SummaryResponse>(base, "/api/crypto/portfolio/bitcoin?view=summary", headers),
+    fetchJSON<SummaryResponse>(
+      base,
+      "/api/crypto/portfolio/bitcoin?view=summary",
+      headers,
+    ),
     fetchJSON<CoinStats>(base, "/api/crypto/bitcoin", headers),
   ]);
   const btcUsd = toNumNull(stats.data?.priceUsd) ?? 0;
@@ -215,16 +254,24 @@ async function getBtcPortfolioUsd(base: string, headers: Record<string, string>)
   return { usd, satsBalance, btcUsd };
 }
 
-async function getEthPortfolioUsd(base: string, headers: Record<string, string>) {
+async function getEthPortfolioUsd(
+  base: string,
+  headers: Record<string, string>,
+) {
   const [summary, stats] = await Promise.all([
-    fetchJSON<SummaryResponse>(base, "/api/crypto/portfolio/ethereum?view=summary", headers),
+    fetchJSON<SummaryResponse>(
+      base,
+      "/api/crypto/portfolio/ethereum?view=summary",
+      headers,
+    ),
     fetchJSON<CoinStats>(base, "/api/crypto/ethereum", headers),
   ]);
   const ethUsd = toNumNull(stats.data?.priceUsd) ?? 0;
   const wallets = summary.data?.wallets ?? [];
-  const weiBalance = wallets.length > 0
-    ? sumBigintWalletField(wallets, "balance")
-    : BigInt(String(summary.data?.totals?.balance ?? 0));
+  const weiBalance =
+    wallets.length > 0
+      ? sumBigintWalletField(wallets, "balance")
+      : BigInt(String(summary.data?.totals?.balance ?? 0));
   const weiAsNum = Number(weiBalance); // coarse for USD calc only
   const usd = ethUsd > 0 ? (weiAsNum / 1e18) * ethUsd : 0;
   return { usd, weiBalance: weiBalance.toString(), ethUsd };
@@ -260,8 +307,16 @@ function CompareTile({
 async function BitcoinView() {
   const { base, forwardHeaders } = await makeBaseAndHeaders();
   const [summary, chart, stats] = await Promise.all([
-    fetchJSON<SummaryResponse>(base, "/api/crypto/portfolio/bitcoin?view=summary", forwardHeaders),
-    fetchJSON<ChartResponse>(base, "/api/crypto/portfolio/bitcoin?view=chart&range=30d", forwardHeaders),
+    fetchJSON<SummaryResponse>(
+      base,
+      "/api/crypto/portfolio/bitcoin?view=summary",
+      forwardHeaders,
+    ),
+    fetchJSON<ChartResponse>(
+      base,
+      "/api/crypto/portfolio/bitcoin?view=chart&range=30d",
+      forwardHeaders,
+    ),
     fetchJSON<CoinStats>(base, "/api/crypto/bitcoin", forwardHeaders),
   ]);
 
@@ -271,29 +326,38 @@ async function BitcoinView() {
         <h1 className="text-2xl font-semibold">Bitcoin Portfolio</h1>
         <div className="rounded-2xl border p-6 bg-amber-50">
           <p className="font-medium">Please sign in to view your portfolio.</p>
-          <p className="text-sm text-gray-600 mt-1">Your session couldn’t be validated. Log in and refresh.</p>
+          <p className="text-sm text-gray-600 mt-1">
+            Your session couldn’t be validated. Log in and refresh.
+          </p>
         </div>
       </main>
     );
   }
 
-  const totals = summary.data?.totals ?? { balance: 0, totalReceived: 0, totalSent: 0, pendingDelta: 0 };
+  const totals = summary.data?.totals ?? {
+    balance: 0,
+    totalReceived: 0,
+    totalSent: 0,
+    pendingDelta: 0,
+  };
   const wallets = summary.data?.wallets ?? [];
   const points = chart.data?.points ?? [];
   const range = chart.data?.range ?? "30d";
   const hasWallets = wallets.length > 0;
-
   const btcUsd = toNumNull(stats.data?.priceUsd) ?? 0;
   const changeFraction =
     typeof stats.data?.change24h === "number"
       ? stats.data?.change24h
       : typeof stats.data?.change24hPct === "number"
-      ? (toNum(stats.data?.change24hPct) / 100)
-      : null;
+        ? toNum(stats.data?.change24hPct) / 100
+        : null;
 
   // sats -> BTC -> USD
   const portfolioUsd = btcUsd > 0 ? (toNum(totals.balance) / 1e8) * btcUsd : 0;
-  const totalTxs = wallets.reduce((sum, w) => sum + (typeof w.txCount === "number" ? w.txCount : 0), 0);
+  const totalTxs = wallets.reduce(
+    (sum, w) => sum + (typeof w.txCount === "number" ? w.txCount : 0),
+    0,
+  );
 
   // ===== Also compute ETH to compare =====
   const other = await getEthPortfolioUsd(base, forwardHeaders);
@@ -304,7 +368,12 @@ async function BitcoinView() {
         <h1 className="text-2xl font-semibold">Bitcoin Portfolio</h1>
         {btcUsd > 0 && (
           <p className="text-sm text-gray-500">
-            BTC: {new Intl.NumberFormat(undefined, { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(btcUsd)}
+            BTC:{" "}
+            {new Intl.NumberFormat(undefined, {
+              style: "currency",
+              currency: "USD",
+              maximumFractionDigits: 0,
+            }).format(btcUsd)}
           </p>
         )}
       </section>
@@ -312,7 +381,11 @@ async function BitcoinView() {
       <section className="grid grid-cols-1 lg:grid-cols-4 gap-4">
         {/* First group: 2-column on mobile */}
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-2 lg:contents">
-          <StatTile label="Portfolio Value" value={btcUsd > 0 ? fmtUSD(portfolioUsd) : "—"} wide />
+          <StatTile
+            label="Portfolio Value"
+            value={btcUsd > 0 ? fmtUSD(portfolioUsd) : "—"}
+            wide
+          />
           <div className="rounded-2xl border p-4">
             <div className="text-sm text-gray-500">Daily Change</div>
             <div className="mt-1 text-xl font-semibold">
@@ -330,13 +403,14 @@ async function BitcoinView() {
         <Tile label="Pending Δ" value={sats(totals.pendingDelta)} />
       </section>
 
-
       {/* ✅ New: cumulative BTC balance chart */}
       <PortfolioChart className="mt-2" />
 
       {wallets.length === 0 ? (
         <div className="rounded-2xl border p-6 bg-white">
-          <p className="font-medium text-black">No wallets for account, add wallets</p>
+          <p className="font-medium text-black">
+            No wallets for account, add wallets
+          </p>
           <p className="text-sm text-black mt-1">
             Connect at least one wallet address to see portfolio stats.
           </p>
@@ -362,8 +436,16 @@ async function EthereumView() {
   const { base, forwardHeaders } = await makeBaseAndHeaders();
   const [summary, chart, stats] = await Promise.all([
     // ✅ Updated to the canonical ETH portfolio endpoints (aggregate multiple wallets)
-    fetchJSON<SummaryResponse>(base, "/api/crypto/portfolio/ethereum?view=summary", forwardHeaders),
-    fetchJSON<ChartResponse>(base, "/api/crypto/portfolio/ethereum?view=chart&range=30d", forwardHeaders),
+    fetchJSON<SummaryResponse>(
+      base,
+      "/api/crypto/portfolio/ethereum?view=summary",
+      forwardHeaders,
+    ),
+    fetchJSON<ChartResponse>(
+      base,
+      "/api/crypto/portfolio/ethereum?view=chart&range=30d",
+      forwardHeaders,
+    ),
     // ✅ Coin price/stats endpoint for ETH
     fetchJSON<CoinStats>(base, "/api/crypto/ethereum", forwardHeaders),
   ]);
@@ -374,13 +456,20 @@ async function EthereumView() {
         <h1 className="text-2xl font-semibold">Ethereum Portfolio</h1>
         <div className="rounded-2xl border p-6 bg-amber-50">
           <p className="font-medium">Please sign in to view your portfolio.</p>
-          <p className="text-sm text-gray-600 mt-1">Your session couldn’t be validated. Log in and refresh.</p>
+          <p className="text-sm text-gray-600 mt-1">
+            Your session couldn’t be validated. Log in and refresh.
+          </p>
         </div>
       </main>
     );
   }
 
-  const totals = summary.data?.totals ?? { balance: "0", totalReceived: "0", totalSent: "0", pendingDelta: "0" };
+  const totals = summary.data?.totals ?? {
+    balance: "0",
+    totalReceived: "0",
+    totalSent: "0",
+    pendingDelta: "0",
+  };
   const wallets = summary.data?.wallets ?? [];
   const points = chart.data?.points ?? [];
   const range = chart.data?.range ?? "30d";
@@ -391,23 +480,33 @@ async function EthereumView() {
     typeof stats.data?.change24h === "number"
       ? stats.data?.change24h
       : typeof stats.data?.change24hPct === "number"
-      ? (toNum(stats.data?.change24hPct) / 100)
-      : null;
+        ? toNum(stats.data?.change24hPct) / 100
+        : null;
 
   // ---- Aggregate totals across all wallets (BigInt-safe) ----
   const combinedTotals =
     wallets.length > 0
       ? {
-          balance:       sumBigintWalletField(wallets, "balance").toString(),
-          totalReceived: sumBigintWalletField(wallets, "totalReceived").toString(),
-          totalSent:     sumBigintWalletField(wallets, "totalSent").toString(),
-          pendingDelta:  sumBigintWalletField(wallets, "pendingDelta").toString(),
+          balance: sumBigintWalletField(wallets, "balance").toString(),
+          totalReceived: sumBigintWalletField(
+            wallets,
+            "totalReceived",
+          ).toString(),
+          totalSent: sumBigintWalletField(wallets, "totalSent").toString(),
+          pendingDelta: sumBigintWalletField(
+            wallets,
+            "pendingDelta",
+          ).toString(),
         }
       : totals;
 
   // wei -> ETH -> USD (USD calc is coarse with Number, OK for UI)
-  const portfolioUsd = ethUsd > 0 ? (toNum(combinedTotals.balance) / 1e18) * ethUsd : 0;
-  const totalTxs = wallets.reduce((sum, w) => sum + (typeof w.txCount === "number" ? w.txCount : 0), 0);
+  const portfolioUsd =
+    ethUsd > 0 ? (toNum(combinedTotals.balance) / 1e18) * ethUsd : 0;
+  const totalTxs = wallets.reduce(
+    (sum, w) => sum + (typeof w.txCount === "number" ? w.txCount : 0),
+    0,
+  );
 
   // ===== Also compute BTC to compare =====
   const other = await getBtcPortfolioUsd(base, forwardHeaders);
@@ -418,7 +517,12 @@ async function EthereumView() {
         <h1 className="text-2xl font-semibold">Ethereum Portfolio</h1>
         {ethUsd > 0 && (
           <p className="text-sm text-gray-500">
-            ETH: {new Intl.NumberFormat(undefined, { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(ethUsd)}
+            ETH:{" "}
+            {new Intl.NumberFormat(undefined, {
+              style: "currency",
+              currency: "USD",
+              maximumFractionDigits: 0,
+            }).format(ethUsd)}
           </p>
         )}
         {/**<p className="text-sm text-gray-500">Range: {range}</p>**/}
@@ -430,10 +534,13 @@ async function EthereumView() {
           value={ethUsd > 0 ? fmtUSD(portfolioUsd) : "—"}
           wide
         />
-        <Tile label="Balance"        value={eth(combinedTotals.balance)} />
-        <Tile label="Total Received" value={eth(combinedTotals.totalReceived)} />
-        <Tile label="Total Sent"     value={eth(combinedTotals.totalSent)} />
-        <Tile label="Pending Δ"      value={eth(combinedTotals.pendingDelta)} />
+        <Tile label="Balance" value={eth(combinedTotals.balance)} />
+        <Tile
+          label="Total Received"
+          value={eth(combinedTotals.totalReceived)}
+        />
+        <Tile label="Total Sent" value={eth(combinedTotals.totalSent)} />
+        <Tile label="Pending Δ" value={eth(combinedTotals.pendingDelta)} />
         <Tile label="Total Transactions" value={totalTxs.toLocaleString()} />
         <div className="rounded-2xl border p-4">
           <div className="text-sm text-gray-500">Daily Change</div>
@@ -447,7 +554,9 @@ async function EthereumView() {
 
       {wallets.length === 0 ? (
         <div className="rounded-2xl border p-6 bg-white">
-          <p className="font-medium text-black">No wallets for account, add wallets</p>
+          <p className="font-medium text-black">
+            No wallets for account, add wallets
+          </p>
           <p className="text-sm text-black mt-1">
             Connect at least one wallet address to see portfolio stats.
           </p>
@@ -462,14 +571,17 @@ async function EthereumView() {
         </div>
       ) : (
         // ✅ Fixed: use ETH formatter for ETH wallets table
-        <WalletsTable wallets={wallets} unitFmt={(n) => eth(n)} unitLabel="ETH" />
+        <WalletsTable
+          wallets={wallets}
+          unitFmt={(n) => eth(n)}
+          unitLabel="ETH"
+        />
       )}
 
       <FlowTable points={points} unitFmt={(n) => eth(n)} unitLabel="ETH" />
     </main>
   );
 }
-
 
 // ======================= Reusable UI bits =======================
 function Tile({ label, value }: { label: string; value: string | number }) {
@@ -481,9 +593,19 @@ function Tile({ label, value }: { label: string; value: string | number }) {
   );
 }
 
-function StatTile({ label, value, wide }: { label: string; value: string; wide?: boolean }) {
+function StatTile({
+  label,
+  value,
+  wide,
+}: {
+  label: string;
+  value: string;
+  wide?: boolean;
+}) {
   return (
-    <div className={`rounded-2xl border p-4 ${wide ? "sm:col-span-1 lg:col-span-1" : ""}`}>
+    <div
+      className={`rounded-2xl border p-4 ${wide ? "sm:col-span-1 lg:col-span-1" : ""}`}
+    >
       <div className="text-sm text-gray-500 font-medium">{label}</div>
       <div className="text-lg font-semibold mt-1">{value}</div>
     </div>
@@ -506,12 +628,24 @@ function WalletsTable({
         <table className="min-w-full text-sm">
           <thead className="bg-gray-50">
             <tr>
-              <th className="text-left px-4 py-2 font-medium text-gray-600">Address</th>
-              <th className="text-right px-4 py-2 font-medium text-gray-600">Balance ({unitLabel})</th>
-              <th className="text-right px-4 py-2 font-medium text-gray-600">Received ({unitLabel})</th>
-              <th className="text-right px-4 py-2 font-medium text-gray-600">Sent ({unitLabel})</th>
-              <th className="text-right px-4 py-2 font-medium text-gray-600">Pending Δ</th>
-              <th className="text-right px-4 py-2 font-medium text-gray-600">Tx Count</th>
+              <th className="text-left px-4 py-2 font-medium text-gray-600">
+                Address
+              </th>
+              <th className="text-right px-4 py-2 font-medium text-gray-600">
+                Balance ({unitLabel})
+              </th>
+              <th className="text-right px-4 py-2 font-medium text-gray-600">
+                Received ({unitLabel})
+              </th>
+              <th className="text-right px-4 py-2 font-medium text-gray-600">
+                Sent ({unitLabel})
+              </th>
+              <th className="text-right px-4 py-2 font-medium text-gray-600">
+                Pending Δ
+              </th>
+              <th className="text-right px-4 py-2 font-medium text-gray-600">
+                Tx Count
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -519,10 +653,16 @@ function WalletsTable({
               <tr key={w.address} className="border-t">
                 <td className="px-4 py-2 font-mono text-xs">{w.address}</td>
                 <td className="px-4 py-2 text-right">{unitFmt(w.balance)}</td>
-                <td className="px-4 py-2 text-right">{unitFmt(w.totalReceived)}</td>
+                <td className="px-4 py-2 text-right">
+                  {unitFmt(w.totalReceived)}
+                </td>
                 <td className="px-4 py-2 text-right">{unitFmt(w.totalSent)}</td>
-                <td className="px-4 py-2 text-right">{unitFmt(w.pendingDelta)}</td>
-                <td className="px-4 py-2 text-right">{w.txCount.toLocaleString()}</td>
+                <td className="px-4 py-2 text-right">
+                  {unitFmt(w.pendingDelta)}
+                </td>
+                <td className="px-4 py-2 text-right">
+                  {w.txCount.toLocaleString()}
+                </td>
               </tr>
             ))}
             {wallets.length === 0 && (
@@ -560,9 +700,15 @@ function FlowTable({
         <table className="min-w-full text-sm">
           <thead className="bg-gray-50">
             <tr>
-              <th className="text-left px-4 py-2 font-medium text-gray-600">Date (UTC)</th>
-              <th className="text-right px-4 py-2 font-medium text-gray-600">Flow ({unitLabel})</th>
-              <th className="text-right px-4 py-2 font-medium text-gray-600">Cumulative ({unitLabel})</th>
+              <th className="text-left px-4 py-2 font-medium text-gray-600">
+                Date (UTC)
+              </th>
+              <th className="text-right px-4 py-2 font-medium text-gray-600">
+                Flow ({unitLabel})
+              </th>
+              <th className="text-right px-4 py-2 font-medium text-gray-600">
+                Cumulative ({unitLabel})
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -586,7 +732,6 @@ function FlowTable({
     </section>
   );
 }
-
 
 // ======================= Main Switcher =======================
 export default async function PortfolioSwitcherPage({

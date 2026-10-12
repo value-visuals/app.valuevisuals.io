@@ -12,6 +12,7 @@ import Tile from "@/components/ui/Tile";
 import WalletsTable from "@/components/tables/WalletsTable";
 import FlowTable from "@/components/tables/FlowTable";
 import {
+  convertUsd,
   eth,
   fmtUSD,
   sats,
@@ -22,7 +23,7 @@ import {
 
 const PortfolioPage = () => {
   const [currentView, setCurrentView] = useState<CoinType>(
-    "ethereum" as CoinType,
+    "bitcoin" as CoinType,
   );
 
   const options = [
@@ -45,8 +46,6 @@ const PortfolioPage = () => {
     usePortfolioSummary(currentView);
   const { data: statsData, isLoading: isLoadingStats } =
     useCoinStats(currentView);
-
-  console.log(summaryData);
 
   const totals = summaryData.totals;
   const wallets = summaryData.wallets;
@@ -75,7 +74,9 @@ const PortfolioPage = () => {
         }
       : totals;
   const portfolioUsd =
-    priceUsd > 0 ? (toNum(combinedTotals.balance) / 1e18) * priceUsd : 0;
+    priceUsd > 0
+      ? convertUsd(combinedTotals.balance, currentView) * priceUsd
+      : 0;
   const totalTxs = wallets.reduce(
     (sum: number, w: WalletStat) =>
       sum + (typeof w.txCount === "number" ? w.txCount : 0),
