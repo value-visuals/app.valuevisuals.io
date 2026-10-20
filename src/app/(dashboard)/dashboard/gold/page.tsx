@@ -1,41 +1,18 @@
-// src/app/(dashboard)/dashboard/gold/page.tsx
-import React from "react";
 import CommodityTopTiles from "@/components/toptiles/CommodityTopTiles";
 import MetalChart from "@/components/charts/MetalsChart";
 import Polymarket from "@/components/Polymarket";
-import {
-  CurrencyProvider,
-  CurrencyToggle,
-} from "@/components/Currency";
+import AssetMark from "@/components/market/AssetMark";
 
 export default function GoldPage() {
-  return (
-    <CurrencyProvider>
-      <div className="space-y-6 mx-auto max-w-7xl">
-        <div className="flex items-center justify-between">
-          <h1 className="flex items-center gap-2 text-xl font-semibold">
-            <span>Gold</span>
-          </h1>
-
-          <div className="self-start sm:self-auto">
-            <CurrencyToggle currencies={["USD"]} />
-          </div>
-        </div>
-
-        <CommodityTopTiles asset="gold" />
-
-        <div className="grid grid-cols-1 gap-6">
-          <MetalChart metal="gold" />
-        </div>
-
-        <div className="lg:col-span-2">
-          <Polymarket limit={8} livePrices asset="gold" />
-        </div>
+  return <div className="space-y-6">
+    <header className="enterprise-workspace-header">
+      <div><span className="enterprise-section-eyebrow">MARKETS / PRECIOUS METALS / GOLD</span>
+        <h1 className="flex items-center gap-3"><AssetMark asset="gold" size={36}/>Gold</h1>
+        <p>Historical performance, market statistics and event intelligence.</p>
       </div>
-    </CurrencyProvider>
-  );
+    </header>
+    <CommodityTopTiles asset="gold"/>
+    <section aria-label="Gold price chart"><MetalChart metal="gold"/></section>
+    <section aria-label="Gold prediction markets"><Polymarket limit={8} livePrices asset="gold"/></section>
+  </div>;
 }
-
-
-
-        

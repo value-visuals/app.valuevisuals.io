@@ -3,6 +3,8 @@
 import React from "react";
 import useSWR from "swr";
 import Image from "next/image";
+import { clientApiUrl } from "@/lib/clientApiUrl";
+import { useAuth } from "@/components/auth/AuthProvider";
 
 import {
   ComposedChart,
@@ -463,6 +465,7 @@ export default function CryptoComparisonChart({
   initialQuote?: Coin;
   className?: string;
 }) {
+  const { user } = useAuth();
   const [base, setBase] =
     React.useState<Coin>(
       initialBase
@@ -501,11 +504,12 @@ export default function CryptoComparisonChart({
 
   const { data, error, isLoading } =
     useSWR<any>(
-      url,
-      (u) =>
-        fetch(u).then((r) =>
-          r.json()
-        ),
+      user ? [url, user.uid] : null,
+      ([path]: [string, string]) =>
+        fetch(clientApiUrl(path)).then((r) => {
+          if (!r.ok) throw new Error("Market comparison unavailable");
+          return r.json();
+        }),
       {
         refreshInterval: 60_000,
         revalidateOnFocus: false,
@@ -686,7 +690,7 @@ export default function CryptoComparisonChart({
                     font-semibold
                     ${
                       isPositive
-                        ? "text-emerald-500"
+                        ? "text-foreground"
                         : "text-red-500"
                     }
                   `}

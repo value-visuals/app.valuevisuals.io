@@ -1,6 +1,8 @@
+"use client";
+import { authenticatedFetch } from "@/lib/auth/authenticatedFetch";
 // src/components/charts/MetalsChart.tsx
 
-"use client";
+
 
 import React from "react";
 import useSWR from "swr";
@@ -385,9 +387,9 @@ export default function MetalsChart({
   const { data, isLoading, error } = useSWR<any>(
     url,
     async (requestUrl) => {
-      const response = await fetch(requestUrl, {
+      const response = await authenticatedFetch(requestUrl, {
         cache: "no-store",
-        credentials: "include",
+        
       });
 
       if (!response.ok) {
@@ -485,7 +487,7 @@ export default function MetalsChart({
               {chartData.length > 1 && (
                 <span
                   className={`text-sm font-semibold ${
-                    isPositive ? "text-emerald-500" : "text-red-500"
+                    isPositive ? "text-foreground" : "text-red-500"
                   }`}
                 >
                   {formatPercent(percent)}
@@ -691,8 +693,8 @@ export default function MetalsChart({
               text-[11px] font-medium transition-all duration-700
               ${
                 justUpdated
-                  ? "opacity-100 text-emerald-500"
-                  : "opacity-0 text-emerald-500"
+                  ? "opacity-100 text-foreground"
+                  : "opacity-0 text-foreground"
               }
             `}
           >

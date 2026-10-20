@@ -1,3 +1,5 @@
-// ── src/app/page.tsx -> redirect root to /signin ────────────
-import { redirect } from "next/navigation";
-export default function Home() { redirect("/signin"); }
+import MarketOverview from "@/components/market/MarketOverview";
+
+export default function Home() {
+  return <MarketOverview />;
+}

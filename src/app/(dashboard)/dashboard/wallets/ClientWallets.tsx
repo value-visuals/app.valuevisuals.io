@@ -1,5 +1,7 @@
-// app/wallets/ClientWallets.tsx
 "use client";
+import { authenticatedFetch } from "@/lib/auth/authenticatedFetch";
+// app/wallets/ClientWallets.tsx
+
 import * as React from "react";
 import Image from "next/image";
 import { Plus, Wallet, ChevronRight, Pencil, Trash2, Save, X } from "lucide-react";
@@ -16,16 +18,16 @@ type InitialMetals = { gold: MetalWallet[]; silver: MetalWallet[] };
 /* --------------------------- API: Crypto -------------------------- */
 async function apiGetWallets(chain?: Chain) {
   const url = `/api/crypto/wallets${chain ? `?chain=${chain}` : ""}`;
-  const res = await fetch(url, { credentials: "include", cache: "no-store" });
+  const res = await authenticatedFetch(url, {  cache: "no-store" });
   if (!res.ok) throw new Error(await res.text());
   return res.json(); // { bitcoin?: [], ethereum?: [] }
 }
 
 async function apiSaveWallet(chain: Chain, address: string) {
-  const res = await fetch(`/api/crypto/wallets`, {
+  const res = await authenticatedFetch(`/api/crypto/wallets`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    credentials: "include",
+    
     body: JSON.stringify({ chain, address }),
   });
   if (!res.ok) throw new Error(await res.text());
@@ -33,19 +35,19 @@ async function apiSaveWallet(chain: Chain, address: string) {
 }
 
 async function apiDeleteWallet(chain: Chain, address: string) {
-  const res = await fetch(
+  const res = await authenticatedFetch(
     `/api/crypto/wallets?chain=${chain}&address=${encodeURIComponent(address)}`,
-    { method: "DELETE", credentials: "include" }
+    { method: "DELETE",  }
   );
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
 
 async function apiUpdateWallet(chain: Chain, oldAddress: string, newAddress: string) {
-  const res = await fetch(`/api/crypto/wallets`, {
+  const res = await authenticatedFetch(`/api/crypto/wallets`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    credentials: "include",
+    
     body: JSON.stringify({ chain, oldAddress, newAddress }),
   });
   if (!res.ok) throw new Error(await res.text());
@@ -54,9 +56,9 @@ async function apiUpdateWallet(chain: Chain, oldAddress: string, newAddress: str
 
 /* --------------------------- API: Metals -------------------------- */
 async function apiGetMetals(metal: Metal) {
-  const res = await fetch(`/api/metals/wallets?metal=${metal}`, {
+  const res = await authenticatedFetch(`/api/metals/wallets?metal=${metal}`, {
     method: "GET",
-    credentials: "include",
+    
     cache: "no-store",
   });
   if (!res.ok) throw new Error(await res.text());
@@ -64,10 +66,10 @@ async function apiGetMetals(metal: Metal) {
 }
 
 async function apiSaveMetal(metal: Metal, name: string, amount: number, unit: MetalUnit) {
-  const res = await fetch(`/api/metals/wallets`, {
+  const res = await authenticatedFetch(`/api/metals/wallets`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    credentials: "include",
+    
     body: JSON.stringify({ metal, name, amount, unit }),
   });
   if (!res.ok) throw new Error(await res.text());
@@ -78,10 +80,10 @@ async function apiUpdateMetal(
   metal: Metal,
   payload: Partial<MetalWallet> & { id: string }
 ) {
-  const res = await fetch(`/api/metals/wallets`, {
+  const res = await authenticatedFetch(`/api/metals/wallets`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    credentials: "include",
+    
     body: JSON.stringify({ metal, ...payload }),
   });
   if (!res.ok) throw new Error(await res.text());
@@ -89,9 +91,9 @@ async function apiUpdateMetal(
 }
 
 async function apiDeleteMetal(metal: Metal, id: string) {
-  const res = await fetch(
+  const res = await authenticatedFetch(
     `/api/metals/wallets?metal=${metal}&id=${encodeURIComponent(id)}`,
-    { method: "DELETE", credentials: "include" }
+    { method: "DELETE",  }
   );
   if (!res.ok) throw new Error(await res.text());
   return res.json();

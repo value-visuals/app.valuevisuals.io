@@ -1,0 +1,8 @@
+{
+  "appId": "io.valuevisuals.app",
+  "appName": "Value Visuals",
+  "webDir": "out",
+  "server": {
+    "androidScheme": "https"
+  }
+}

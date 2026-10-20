@@ -1,35 +1,18 @@
-// src/app/(dashboard)/dashboard/silver/page.tsx
-import React from "react";
 import CommodityTopTiles from "@/components/toptiles/CommodityTopTiles";
 import MetalChart from "@/components/charts/MetalsChart";
-import Polymarket from "@/components/Polymarket";import {
-  CurrencyProvider,
-  CurrencyToggle,
-} from "@/components/Currency";
+import Polymarket from "@/components/Polymarket";
+import AssetMark from "@/components/market/AssetMark";
 
 export default function SilverPage() {
-  return (
-    <CurrencyProvider>
-    <div className="space-y-6 mx-auto max-w-7xl">
-      <div className="flex items-center justify-between">
-        <h1 className="flex items-center gap-2 text-xl font-semibold">
-          <span>Silver</span>
-        </h1>
-        <div className="self-start sm:self-auto">
-            <CurrencyToggle currencies={["USD"]} />
-        </div>
+  return <div className="space-y-6">
+    <header className="enterprise-workspace-header">
+      <div><span className="enterprise-section-eyebrow">MARKETS / PRECIOUS METALS / SILVER</span>
+        <h1 className="flex items-center gap-3"><AssetMark asset="silver" size={36}/>Silver</h1>
+        <p>Historical performance, market statistics and event intelligence.</p>
       </div>
-        <CommodityTopTiles asset="silver" />
-        <div className="grid grid-cols-1 gap-6">
-            <MetalChart metal="silver" />
-        </div>
-        {/* New: Polymarket section */}
-        <div className="lg:col-span-2">
-          <Polymarket limit={8} livePrices asset="silver"/>
-        </div>
-    </div>
-    </CurrencyProvider>
-  );
+    </header>
+    <CommodityTopTiles asset="silver"/>
+    <section aria-label="Silver price chart"><MetalChart metal="silver"/></section>
+    <section aria-label="Silver prediction markets"><Polymarket limit={8} livePrices asset="silver"/></section>
+  </div>;
 }
-
-

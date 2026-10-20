@@ -3,3 +3,12 @@
 .next
 .DS_store
 node_modules
+
+# Build/native outputs and local secrets
+/out
+/ios
+/android
+.env
+.env.local
+.env.*.local
+.DS_Store

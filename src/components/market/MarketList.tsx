@@ -849,7 +849,7 @@ function Header() {
           text-muted-foreground
         "
       >
-        <span className="size-1.5 rounded-full bg-emerald-500" />
+        <span className="size-1.5 rounded-full bg-slate-500" />
         Live
       </div>
     </div>
@@ -964,7 +964,7 @@ function MarketRowItem({
               asset.change24hPct === null
                 ? "text-muted-foreground"
                 : positive24h
-                  ? "text-emerald-500"
+                  ? "text-foreground"
                   : "text-red-500"
             }`}
           >
@@ -985,7 +985,7 @@ function MarketRowItem({
               asset.change7dPct === null
                 ? "text-muted-foreground"
                 : positive7d
-                  ? "text-emerald-500"
+                  ? "text-foreground"
                   : "text-red-500"
             }`}
           >

@@ -6,14 +6,14 @@ import { useTheme } from "@/components/theme/ThemeProvider";
 
 export default function ThemeToggle({ className = "" }: { className?: string }) {
   const [mounted, setMounted] = useState(false);
-  const { toggle } = useTheme();
+  const { theme, toggle } = useTheme();
 
   useEffect(() => setMounted(true), []);
   if (!mounted) return null;
 
-  const isDark =
-    typeof document !== "undefined" &&
-    document.documentElement.classList.contains("dark");
+  const isDark = theme === "system"
+    ? typeof window !== "undefined" && window.matchMedia("(prefers-color-scheme: dark)").matches
+    : theme === "dark";
 
   const label = isDark ? "Switch to light mode" : "Switch to dark mode";
 

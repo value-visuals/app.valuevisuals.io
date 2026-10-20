@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import type { User } from "firebase/auth";
 import {
   Settings,
   ChevronRight,
@@ -10,6 +9,7 @@ import {
   X,
 } from "lucide-react";
 import {
+  type User,
   EmailAuthProvider,
   GoogleAuthProvider,
   reauthenticateWithCredential,
@@ -19,6 +19,7 @@ import {
   onAuthStateChanged,
 } from "firebase/auth";
 import { auth } from "@/lib/firebase";
+import { authenticatedFetch } from "@/lib/auth/authenticatedFetch";
 import { useAuth } from "@/components/auth/AuthProvider";
 import Link from "next/link";
 
@@ -133,15 +134,7 @@ export default function SettingsPage() {
       setInterestsLoading(true);
 
       try {
-        const token = await auth.currentUser.getIdToken();
-
-        const response = await fetch("/api/me", {
-          method: "GET",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-          cache: "no-store",
-        });
+        const response = await authenticatedFetch("/api/me", { method: "GET" });
 
         if (!response.ok) {
           throw new Error("Failed to load profile");
@@ -206,25 +199,10 @@ export default function SettingsPage() {
     setLoading(true);
 
     try {
-      const token = await auth.currentUser?.getIdToken();
-
-      if (!token) {
-        throw new Error("Missing authentication token.");
-      }
-
-      const response = await fetch(
-        "/api/user/interests",
-        {
-          method: "PUT",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            interests: interestDraft,
-          }),
-        }
-      );
+      const response = await authenticatedFetch("/api/user/interests", {
+        method: "PUT",
+        body: JSON.stringify({ interests: interestDraft }),
+      });
 
       const data = await response.json();
 
@@ -313,15 +291,7 @@ export default function SettingsPage() {
     if (!auth.currentUser) return;
 
     try {
-      const token =
-        await auth.currentUser.getIdToken(true);
-
-      await fetch("/api/crypto/settings", {
-        method: "PUT",
-        headers: {
-          authorization: `Bearer ${token}`,
-        },
-      });
+      await authenticatedFetch("/api/crypto/settings", { method: "PUT" });
     } catch (e) {
       console.warn("Mirror email failed", e);
     }
@@ -545,7 +515,7 @@ export default function SettingsPage() {
           className={[
             "mb-6 rounded-lg border px-3 py-2.5 text-sm",
             msg.kind === "success" &&
-              "border-green-200 bg-green-50 text-green-800",
+              "border-border bg-muted text-foreground",
             msg.kind === "error" &&
               "border-red-200 bg-red-50 text-red-800",
             msg.kind === "info" &&

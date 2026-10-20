@@ -1,19 +1,15 @@
+import { readBearer } from "@/lib/auth/serverBearer";
 // src/app/api/crypto/ethereum/route.ts
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
 import { getApiUrl } from "@/lib/getApiUrl";
 
 export const dynamic = 'force-dynamic';
 export const fetchCache = 'force-no-store';
-export const revalidate = 60;
+export const revalidate = 0;
 export const runtime = "nodejs";
 
 async function getAuthHeader(req: Request) {
-  const hdr = req.headers.get("authorization");
-  if (hdr?.startsWith("Bearer ")) return hdr;
-  const store = await cookies();
-  const token = store.get("__session")?.value || store.get("idToken")?.value;
-  return token ? `Bearer ${token}` : undefined;
+  return readBearer(req);
 }
 
 export async function GET(req: Request) {
@@ -30,15 +26,17 @@ export async function GET(req: Request) {
     const [sumRes, globalRes] = await Promise.all([
       fetch(`${API_BASE}/api/crypto/summary?symbols=ETH`, {
         headers: { Authorization: auth },
-        // @ts-ignore
-        next: { revalidate },
+        cache: "no-store",
       }),
       fetch(`${API_BASE}/api/crypto/global`, {
         headers: { Authorization: auth },
-        // @ts-ignore
-        next: { revalidate },
+        cache: "no-store",
       }),
     ]);
+
+    if (sumRes.status === 401 || globalRes.status === 401) {
+      return NextResponse.json({ error: "Firebase session rejected" }, { status: 401 });
+    }
 
     let priceUsd: number | null = null;
     let change24hPct: number | null = null;

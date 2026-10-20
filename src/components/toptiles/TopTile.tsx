@@ -36,7 +36,7 @@ export default function TopTile({
         <div
           className={`mt-1 flex items-center gap-1 text-xs ${
             positive
-              ? "text-green-600"
+              ? "text-foreground"
               : "text-red-600"
           }`}
         >

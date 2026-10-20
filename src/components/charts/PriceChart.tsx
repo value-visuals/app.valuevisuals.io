@@ -1,4 +1,5 @@
 "use client";
+import { authenticatedFetch } from "@/lib/auth/authenticatedFetch";
 
 import React from "react";
 import useSWR from "swr";
@@ -781,7 +782,7 @@ async function fetchChart(
   url: string
 ): Promise<CryptoChartResponse> {
   const response =
-    await fetch(url, {
+    await authenticatedFetch(url, {
       method: "GET",
       cache: "no-store",
       headers: {
@@ -1154,7 +1155,7 @@ export default function PriceChart({
                     font-semibold
                     ${
                       isPositive
-                        ? "text-emerald-500"
+                        ? "text-foreground"
                         : "text-red-500"
                     }
                   `}
@@ -1681,8 +1682,8 @@ export default function PriceChart({
               duration-700
               ${
                 justUpdated
-                  ? "opacity-100 text-emerald-500"
-                  : "opacity-0 text-emerald-500"
+                  ? "opacity-100 text-foreground"
+                  : "opacity-0 text-foreground"
               }
             `}
           >

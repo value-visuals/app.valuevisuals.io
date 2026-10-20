@@ -1,4 +1,5 @@
 "use client";
+import { authenticatedFetch } from "@/lib/auth/authenticatedFetch";
 
 import React from "react";
 import useSWR from "swr";
@@ -359,10 +360,10 @@ async function fetchChart(
   url: string
 ): Promise<ChartResponse> {
   const response =
-    await fetch(url, {
+    await authenticatedFetch(url, {
       method: "GET",
       cache: "no-store",
-      credentials: "include",
+      
       headers: {
         Accept:
           "application/json",

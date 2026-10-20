@@ -1,5 +1,8 @@
-// components/charts/PortfolioChart.tsx
 "use client";
+import { authenticatedFetch } from "@/lib/auth/authenticatedFetch";
+import { useAuth } from "@/components/auth/AuthProvider";
+// components/charts/PortfolioChart.tsx
+
 
 import React from "react";
 import useSWR from "swr";
@@ -17,7 +20,7 @@ import {
 type ChartPoint = { t: number | string; flow: string | number; cum: string | number };
 type ChartResponse = { range: string; points: ChartPoint[]; note?: string };
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
+const fetcher = (url: string) => authenticatedFetch(url).then((r) => { if (!r.ok) throw new Error(`Portfolio chart unavailable (${r.status})`); return r.json(); });
 
 // Keep ranges aligned with your backend's accepted values (30d | 90d | 1y)
 const RANGES = [
@@ -76,13 +79,14 @@ function formatXAxis(ts: number | string, totalDays: number) {
 
 
 export default function PortfolioChart({ className = "" }: { className?: string }) {
+  const { user } = useAuth();
   const [range, setRange] = React.useState<string>("30d");
   const selected = RANGES.find((r) => r.value === range) ?? RANGES[0];
 
   // Uses the same portfolio chart endpoint your page is already calling
-  // for BitcoinView (view=chart + range).  :contentReference[oaicite:2]{index=2}
+  // for BitcoinView (view=chart + range).
   const url = `/api/crypto/portfolio/bitcoin?view=chart&range=${encodeURIComponent(range)}`;
-  const { data, isLoading } = useSWR<ChartResponse>(url, fetcher, { refreshInterval: 60_000 });
+  const { data, isLoading } = useSWR<ChartResponse>(user ? [url, user.uid] : null, ([path]: [string, string]) => fetcher(path), { refreshInterval: 60_000 });
 
   const points = Array.isArray(data?.points) ? data!.points : [];
   const chartData = points.map((p) => ({

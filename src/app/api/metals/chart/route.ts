@@ -1,7 +1,7 @@
 // src/app/api/metals/chart/routes.ts
 
 import { NextRequest } from "next/server";
-import { cookies } from "next/headers";
+import { readBearer } from "@/lib/auth/serverBearer";
 import { getApiUrl } from "@/lib/getApiUrl";
 
 import {
@@ -16,53 +16,9 @@ export const revalidate = 0;
 /* Auth helpers                                                               */
 /* -------------------------------------------------------------------------- */
 
-async function getCookieStore() {
-  const maybe = cookies() as any;
-  return typeof maybe?.then === "function" ? await maybe : maybe;
-}
-
-function looksLikeJwt(value: string): boolean {
-  return value.split(".").length === 3;
-}
-
-async function buildAuthHeaders(req: NextRequest): Promise<Record<string, string>> {
-  const headers: Record<string, string> = { accept: "application/json" };
-
-  const reqAuth = req.headers.get("authorization");
-
-  if (reqAuth) {
-    headers.authorization = reqAuth;
-  } else {
-    const jar = await getCookieStore();
-
-    const known =
-      jar.get("authToken")?.value ||
-      jar.get("token")?.value ||
-      jar.get("jwt")?.value ||
-      jar.get("access_token")?.value ||
-      jar.get("Authorization")?.value;
-
-    let token = known;
-
-    if (!token) {
-      for (const cookie of jar.getAll()) {
-        if (typeof cookie.value === "string" && looksLikeJwt(cookie.value)) {
-          token = cookie.value;
-          break;
-        }
-      }
-    }
-
-    if (token) {
-      headers.authorization = token.startsWith("Bearer ") ? token : `Bearer ${token}`;
-      headers["x-auth-token"] = headers.authorization.replace(/^Bearer\s+/i, "");
-    }
-  }
-
-  const cookieHeader = req.headers.get("cookie");
-  if (cookieHeader) headers.cookie = cookieHeader;
-
-  return headers;
+function buildAuthHeaders(req: NextRequest): Record<string, string> | null {
+  const auth = readBearer(req);
+  return auth ? { accept: "application/json", authorization: auth } : null;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -140,10 +96,12 @@ export async function GET(req: NextRequest) {
     /* Request                                                                */
     /* ---------------------------------------------------------------------- */
 
+    const authHeaders = buildAuthHeaders(req);
+    if (!authHeaders) return Response.json({ error: "Firebase authentication required" }, { status: 401 });
     const response = await fetch(url.toString(), {
       method: "GET",
       cache: "no-store",
-      headers: await buildAuthHeaders(req),
+      headers: authHeaders,
     });
 
     const body = await response.text();
