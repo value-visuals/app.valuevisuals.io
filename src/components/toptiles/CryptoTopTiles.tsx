@@ -1,294 +1,71 @@
-// components/toptiles/CryptoTopTiles.tsx
-
 "use client";
 
 import { useEffect } from "react";
-
+import { useCurrency } from "@/components/Currency";
+import { useMarketStore, type CoinStats } from "@/stores/marketStore";
 import TopTile from "./TopTile";
 
-import { useCurrency } from "../Currency";
+type CryptoAsset = "bitcoin" | "ethereum" | "monero";
+type Props = { asset: CryptoAsset; className?: string };
 
-import {
-  useMarketStore,
-  type CoinStats,
-} from "@/stores/marketStore";
-
-type CryptoAsset =
-  | "bitcoin"
-  | "ethereum"
-  | "monero";
-
-type CryptoTopTilesProps = {
-  asset: CryptoAsset;
-  className?: string;
+type SummaryStats = {
+  marketCap?: number | null;
+  volume24h?: number | null;
+  change24h?: number | null;
+  change24hPct?: number | null;
+  dominancePct?: number | null;
 };
 
-const assetConfig: Record<
-  CryptoAsset,
-  {
-    symbol: string;
-    statsKey:
-      | "bitcoinStats"
-      | "ethereumStats"
-      | "moneroStats";
-  }
-> = {
-  bitcoin: {
-    symbol: "BTC",
-    statsKey: "bitcoinStats",
-  },
-
-  ethereum: {
-    symbol: "ETH",
-    statsKey: "ethereumStats",
-  },
-
-  monero: {
-    symbol: "XMR",
-    statsKey: "moneroStats",
-  },
+const SYMBOL: Record<CryptoAsset, string> = {
+  bitcoin: "BTC", ethereum: "ETH", monero: "XMR",
 };
 
-function formatCurrency(
-  value: number | null | undefined,
-  currency: string
-) {
-  if (
-    value == null ||
-    Number.isNaN(value)
-  ) {
-    return "—";
-  }
-
-  return new Intl.NumberFormat(
-    undefined,
-    {
-      style: "currency",
-      currency,
-      maximumFractionDigits: 0,
-    }
-  ).format(value);
+function money(value: number | null | undefined, currency: string, compact = false): string {
+  if (value == null || !Number.isFinite(value)) return "—";
+  return new Intl.NumberFormat(undefined, {
+    style: "currency", currency,
+    ...(compact ? { notation: "compact" as const, maximumFractionDigits: 2 } : { maximumFractionDigits: 2 }),
+  }).format(value);
 }
 
-function formatPercent(
-  value: number | null | undefined
-) {
-  if (
-    value == null ||
-    Number.isNaN(value)
-  ) {
-    return "—";
-  }
-
-  return `${(
-    value * 100
-  ).toFixed(2)}%`;
+function percent(value: number | null | undefined): string {
+  if (value == null || !Number.isFinite(value)) return "—";
+  return `${(value * 100).toFixed(2)}%`;
 }
 
-function getChangeFraction(
-  stats: CoinStats | null
-) {
-  if (!stats) {
-    return null;
-  }
+function changeFraction(stats: CoinStats | null): number | null {
+  if (!stats) return null;
+  return stats.change24h ?? (stats.change24hPct != null ? stats.change24hPct / 100 : null);
+}
+
+export default function CryptoTopTiles({ asset, className = "" }: Props) {
+  const { currency } = useCurrency();
+  const marketCurrency = currency.toLowerCase() as "usd" | "eur" | "gbp";
+  const cryptoSummary = useMarketStore((state) => state.cryptoSummary);
+  const cryptoError = useMarketStore((state) => state.cryptoError);
+  const fetchMarketData = useMarketStore((state) => state.fetchMarketData);
+  const stats = useMarketStore((state) => asset === "bitcoin" ? state.bitcoinStats : asset === "ethereum" ? state.ethereumStats : state.moneroStats);
+  const fetchStats = useMarketStore((state) => asset === "bitcoin" ? state.fetchBitcoinStats : asset === "ethereum" ? state.fetchEthereumStats : state.fetchMoneroStats);
+
+  useEffect(() => { void fetchMarketData(marketCurrency); }, [fetchMarketData, marketCurrency]);
+  useEffect(() => { if (!stats) void fetchStats(); }, [fetchStats, stats]);
+
+  // Prices, market cap and trading volume come from the same currency-aware summary
+  // used elsewhere in the application. CoinGecko supplemental data never replaces them.
+  const price = cryptoSummary?.[asset]?.[marketCurrency];
+  const summaryStats = cryptoSummary?.[`${asset}_stats`] as SummaryStats | undefined;
+  const cap = summaryStats?.marketCap ?? null;
+  const volume = summaryStats?.volume24h ?? null;
+  const change = summaryStats?.change24h ?? changeFraction(stats);
+  const dominance = summaryStats?.dominancePct ?? stats?.dominancePct ?? null;
+  const error = Boolean(cryptoError);
 
   return (
-    stats.change24h ??
-    (stats.change24hPct != null
-      ? stats.change24hPct / 100
-      : null)
-  );
-}
-
-export default function CryptoTopTiles({
-  asset,
-  className = "",
-}: CryptoTopTilesProps) {
-  const { currency } =
-    useCurrency();
-
-  const config =
-    assetConfig[asset];
-
-  /*
-   * Same currency-aware summary
-   * used by the dashboard TopTiles.
-   */
-  const cryptoSummary =
-    useMarketStore(
-      (state) =>
-        state.cryptoSummary
-    );
-
-  const cryptoError =
-    useMarketStore(
-      (state) =>
-        state.cryptoError
-    );
-
-  const fetchMarketData =
-    useMarketStore(
-      (state) =>
-        state.fetchMarketData
-    );
-
-  /*
-   * Keep the existing stats for
-   * percentage change and dominance
-   * while we transition the currency
-   * values to cryptoSummary.
-   */
-  const stats =
-    useMarketStore(
-      (state) =>
-        state[config.statsKey]
-    );
-
-  const fetchStats =
-    asset === "bitcoin"
-      ? useMarketStore(
-          (state) =>
-            state.fetchBitcoinStats
-        )
-      : asset === "ethereum"
-        ? useMarketStore(
-            (state) =>
-              state.fetchEthereumStats
-          )
-        : useMarketStore(
-            (state) =>
-              state.fetchMoneroStats
-          );
-
-  const curKey =
-    currency.toLowerCase() as
-      | "usd"
-      | "eur"
-      | "gbp";
-
-  /*
-   * Fetch the same currency-aware
-   * summary used by dashboard TopTiles.
-   */
-  useEffect(() => {
-    void fetchMarketData(
-      curKey
-    );
-  }, [
-    curKey,
-    fetchMarketData,
-  ]);
-
-  /*
-   * Keep loading the existing
-   * individual stats endpoint for
-   * change/dominance.
-   */
-  useEffect(() => {
-    if (!stats) {
-      void fetchStats();
-    }
-  }, [
-    stats,
-    fetchStats,
-  ]);
-
-  /*
-   * Currency-aware values from
-   * cryptoSummary.
-   */
-  const price =
-    cryptoSummary?.[
-      asset
-    ]?.[curKey];
-
-  const currencyStats =
-    cryptoSummary?.[
-      `${asset}_stats`
-    ] as
-      | {
-          price?: number | null;
-          marketCap?:
-            | number
-            | null;
-          volume24h?:
-            | number
-            | null;
-          change24h?:
-            | number
-            | null;
-          change24hPct?:
-            | number
-            | null;
-          dominancePct?:
-            | number
-            | null;
-        }
-      | undefined;
-
-  const marketCap =
-    currencyStats?.marketCap ??
-    null;
-
-  const volume24h =
-    currencyStats?.volume24h ??
-    null;
-
-  /*
-   * Keep the existing change/dominance
-   * behavior.
-   */
-  const change =
-    currencyStats?.change24h ??
-    getChangeFraction(stats);
-
-  const dominance =
-    currencyStats?.dominancePct ??
-    stats?.dominancePct ??
-    null;
-
-  const hasError =
-    !!cryptoError;
-
-  return (
-    <div
-      className={`grid gap-4 sm:grid-cols-2 lg:grid-cols-4 ${className}`}
-    >
-      <TopTile
-        label={`${config.symbol} Price`}
-        value={formatCurrency(
-          price,
-          currency
-        )}
-        change={change}
-        error={hasError}
-      />
-
-      <TopTile
-        label={`${config.symbol} Market Cap`}
-        value={formatCurrency(
-          marketCap,
-          currency
-        )}
-        error={hasError}
-      />
-
-      <TopTile
-        label={`${config.symbol} 24h Volume`}
-        value={formatCurrency(
-          volume24h,
-          currency
-        )}
-        error={hasError}
-      />
-
-      <TopTile
-        label={`${config.symbol} Dominance`}
-        value={formatPercent(
-          dominance
-        )}
-        error={hasError}
-      />
+    <div className={`grid gap-4 sm:grid-cols-2 lg:grid-cols-4 ${className}`}>
+      <TopTile label={`${SYMBOL[asset]} price`} value={money(price, currency)} change={change} error={error} />
+      <TopTile label="Market capitalization" value={money(cap, currency, true)} fullValue={money(cap, currency)} error={error} />
+      <TopTile label="24h trading volume" value={money(volume, currency, true)} fullValue={money(volume, currency)} error={error} />
+      <TopTile label="Market dominance" value={percent(dominance)} error={error} />
     </div>
   );
 }
