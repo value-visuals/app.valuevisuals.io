@@ -1,38 +1,5 @@
-// src/app/(dashboard)/dashboard/ethereum/page.tsx
-import CryptoTopTiles from "@/components/toptiles/CryptoTopTiles";
-import PriceChart from "@/components/charts/PriceChart";
-import {
-  CurrencyProvider,
-  CurrencyToggle,
-} from "@/components/Currency";
-import Image from "next/image";
-import Polymarket from "@/components/Polymarket";
+import AssetPage from "@/components/asset/AssetPage";
 
 export default function EthereumPage() {
-  return (
-    <CurrencyProvider>
-    <div className="space-y-6 mx-auto max-w-7xl">
-      <div className="flex items-center justify-between">
-        <h1 className="flex items-center gap-2 text-xl font-semibold">
-          <Image src={`/ethereum.png`} alt={`Ethereum`} width={20} height={20} />
-          <span>Ethereum</span>
-        </h1>
-        <div className="self-start sm:self-auto">
-              <CurrencyToggle />
-        </div>
-      </div>
-
-      <CryptoTopTiles asset="ethereum" />
-
-        <div className="grid grid-cols-1 gap-6">
-          <PriceChart coin="ethereum" />
-        </div>
-
-        {/* New: Polymarket section */}
-        <div className="lg:col-span-2">
-          <Polymarket limit={8} livePrices asset="ethereum"/>
-        </div>
-    </div>
-    </CurrencyProvider>
-  );
+  return <AssetPage asset="ethereum" />;
 }

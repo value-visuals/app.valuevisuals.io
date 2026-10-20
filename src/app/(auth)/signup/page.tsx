@@ -1,297 +1,66 @@
-// app/signup/page.tsx
 "use client";
 
-import React, { useState } from "react";
+import { useState, type FormEvent } from "react";
 import Link from "next/link";
-import Image from "next/image";
-import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
-import { Mail, Lock, Eye, EyeOff, User } from "lucide-react";
-import ThemeToggle from "@/components/theme/ThemeToggle";
-import { getAuth, signInWithCustomToken } from "firebase/auth";
-
-type InterestKey = "bitcoin" | "ethereum" | "monero" | "gold" | "silver";
-
-const ALL_INTERESTS: { key: InterestKey; label: string; icon: React.ReactNode }[] = [
-  {
-    key: "bitcoin",
-    label: "Bitcoin",
-    icon: (
-      <Image
-        src="/bitcoin.svg"
-        alt="Bitcoin"
-        width={20}
-        height={20}
-        className="h-5 w-5"
-        priority
-      />
-    ),
-  },
-  {
-    key: "ethereum",
-    label: "Ethereum",
-    icon: (
-      <Image
-        src="/ethereum.png"
-        alt="Ethereum"
-        width={20}
-        height={20}
-        className="h-5 w-5"
-        priority
-      />
-    ),
-  },
-  {
-    key: "monero",
-    label: "Monero",
-    icon: (
-      <Image
-        src="/monero.svg"
-        alt="Monero"
-        width={20}
-        height={20}
-        className="h-5 w-5"
-        priority
-      />
-    ),
-  },
-  { key: "gold", label: "Gold", icon: <span className="text-lg leading-none">🥇</span> },
-  { key: "silver", label: "Silver", icon: <span className="text-lg leading-none">🥈</span> },
-];
+import { ArrowRight, Eye, EyeOff, LockKeyhole, Mail, UserRound } from "lucide-react";
+import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
+import { auth } from "@/lib/firebase";
+import { authenticatedFetch } from "@/lib/auth/authenticatedFetch";
+import { authErrorMessage } from "@/lib/auth/authErrorMessage";
 
 export default function SignUpPage() {
-  const [firstName, setFirstName] = useState("");
-  const [lastName,  setLastName]  = useState("");
-  const [email,     setEmail]     = useState("");
-  const [password,  setPassword]  = useState("");
-  const [showPw,    setShowPw]    = useState(false);
-  const [error,     setError]     = useState<string | null>(null);
-  const [loading,   setLoading]   = useState(false);
-  const [interests, setInterests] = useState<InterestKey[]>([]);
   const router = useRouter();
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [visible, setVisible] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [interests, setInterests] = useState<string[]>([]);
+  const [profileWarning, setProfileWarning] = useState("");
 
-  function toggleInterest(key: InterestKey) {
-    setInterests((prev) =>
-      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]
-    );
-  }
-
-  async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    if (loading) return;
-    setError(null);
-    setLoading(true);
-
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); setError(""); setLoading(true);
     try {
-      const displayName = `${firstName.trim()} ${lastName.trim()}`.trim();
-
-      // 1) Create the account via our API and receive a customToken
-      const signupRes = await fetch("/api/auth/signup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: email.trim(),
-          password,
-          displayName,
-          interests, // <-- pass selected interests to backend
-        }),
-      });
-
-      const signupJson = await signupRes.json().catch(() => ({} as any));
-      if (!signupRes.ok || !signupJson?.customToken) {
-        throw new Error(
-          signupJson?.error || "Failed to create account (no customToken)"
-        );
+      const result = await createUserWithEmailAndPassword(auth, email.trim(), password);
+      if (name.trim()) await updateProfile(result.user, { displayName: name.trim() });
+      await result.user.getIdToken();
+      // Preserve the existing interests API. The password is never forwarded.
+      if (interests.length) {
+        try {
+          const response = await authenticatedFetch("/api/user/interests", {
+            method: "PUT",
+            body: JSON.stringify({ interests }),
+          });
+          if (!response.ok) throw new Error("Interest settings could not be saved");
+        } catch {
+          setProfileWarning("Your Firebase account was created. Market interests could not be saved to the existing profile service yet. You can set them later in Settings.");
+          return;
+        }
       }
-
-      // 2) Client-side exchange of customToken -> idToken using Firebase SDK
-      const auth = getAuth();
-      const cred = await signInWithCustomToken(auth, signupJson.customToken);
-      const idToken = await cred.user.getIdToken(true);
-      const refreshToken = cred.user.refreshToken;
-
-      // 3) Persist session as httpOnly cookies on the server
-      const sessionRes = await fetch("/api/auth/session", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ idToken, refreshToken, expiresIn: 3600 }),
-      });
-
-      if (!sessionRes.ok) {
-        const j = await sessionRes.json().catch(() => ({} as any));
-        throw new Error(j?.error || "Failed to persist session");
-      }
-
       router.replace("/dashboard");
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to sign up");
-    } finally {
-      setLoading(false);
-    }
+      router.refresh();
+    } catch (error: unknown) {
+      setError(authErrorMessage(error, "signup"));
+    } finally { setLoading(false); }
   }
-
-  const inputClass =
-    "w-full rounded-xl border border-[var(--border)] bg-[var(--background)] " +
-    "px-10 py-2.5 text-sm text-[var(--foreground)] shadow-sm outline-none " +
-    "placeholder:text-[var(--muted-foreground)] focus:border-[var(--primary)] " +
-    "focus:ring-4 focus:ring-[color:var(--ring)]/30";
-
-  const iconClass = "h-4 w-4 text-[var(--muted-foreground)]";
 
   return (
-    <main className="flex min-h-screen w-full items-center justify-center bg-[var(--background)] text-[var(--foreground)]">
-      <div className="w-full max-w-md rounded-2xl bg-[var(--card)] p-8 shadow-sm ring-1 ring-[var(--border)]">
-        <div className="mb-6 text-center">
-          <h1 className="text-3xl font-bold text-[var(--foreground)]">Create your account</h1>
-        </div>
-
-        <form onSubmit={onSubmit} className="space-y-5">
-          {/* First Name */}
-          <div className="relative">
-            <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center">
-              <User className={iconClass} />
-            </span>
-            <input
-              id="firstName"
-              type="text"
-              value={firstName}
-              onChange={(e) => setFirstName(e.target.value)}
-              required
-              className={inputClass}
-              placeholder="First name"
-              autoComplete="given-name"
-            />
-          </div>
-
-          {/* Last Name */}
-          <div className="relative">
-            <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center">
-              <User className={iconClass} />
-            </span>
-            <input
-              id="lastName"
-              type="text"
-              value={lastName}
-              onChange={(e) => setLastName(e.target.value)}
-              required
-              className={inputClass}
-              placeholder="Last name"
-              autoComplete="family-name"
-            />
-          </div>
-
-          {/* Email */}
-          <div className="relative">
-            <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center">
-              <Mail className={iconClass} />
-            </span>
-            <input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              className={inputClass}
-              placeholder="you@example.com"
-              autoComplete="email"
-              inputMode="email"
-            />
-          </div>
-
-          {/* Password */}
-          <div className="relative">
-            <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center">
-              <Lock className={iconClass} />
-            </span>
-            <input
-              id="password"
-              type={showPw ? "text" : "password"}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              minLength={6}
-              className={inputClass}
-              placeholder="At least 6 characters"
-              autoComplete="new-password"
-            />
-            <button
-              type="button"
-              onClick={() => setShowPw((s) => !s)}
-              aria-label={showPw ? "Hide password" : "Show password"}
-              className="absolute inset-y-0 right-3 inline-flex items-center text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
-            >
-              {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-            </button>
-          </div>
-
-          {/* Interests */}
-          <fieldset className="space-y-3">
-            <legend className="text-sm font-medium text-[var(--foreground)]">
-              Interests
-            </legend>
-            <div className="grid grid-cols-2 gap-3">
-              {ALL_INTERESTS.map(({ key, label, icon }) => {
-                const selected = interests.includes(key);
-                return (
-                  <button
-                    key={key}
-                    type="button"
-                    onClick={() => toggleInterest(key)}
-                    className={[
-                      "flex items-center gap-2 rounded-xl border px-3 py-2 text-left",
-                      "transition-shadow",
-                      selected
-                        ? "border-[var(--primary)] ring-2 ring-[color:var(--ring)]/40"
-                        : "border-[var(--border)] hover:shadow-sm",
-                      "bg-[var(--background)]",
-                    ].join(" ")}
-                    aria-pressed={selected}
-                  >
-                    <span className="inline-flex h-5 w-5 items-center justify-center">{icon}</span>
-                    <span className="text-sm">{label}</span>
-                    {selected && (
-                      <span className="ml-auto text-xs text-[var(--primary)]"></span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          </fieldset>
-
-          {/* Error */}
-          {error && (
-            <p
-              className="rounded-lg px-3 py-2 text-sm ring-1"
-              style={{
-                background: "color-mix(in srgb, var(--destructive) 10%, transparent)",
-                color: "var(--destructive-foreground)",
-                borderColor: "color-mix(in srgb, var(--destructive) 35%, var(--border))",
-              }}
-              role="alert"
-            >
-              {error}
-            </p>
-          )}
-
-          <Button
-            type="submit"
-            className="w-full rounded-xl py-2.5 text-sm border border-transparent dark:border-white overflow-visible"
-            disabled={loading || !firstName || !lastName || !email || !password}
-          >
-            {loading ? "Creating account…" : "Create account"}
-          </Button>
+    <main className="auth-scene px-4 py-14 sm:py-20">
+      <div className="auth-panel">
+        <div className="mb-8"><span className="eyebrow">START TRACKING</span><h1 className="mt-2 text-3xl font-semibold tracking-tight">Create your workspace.</h1><p className="mt-2 text-sm text-muted-foreground">Your market data stays public. Your financial workspace stays private.</p></div>
+        {error && <p role="alert" className="auth-error">{error}</p>}
+        {profileWarning && <div role="status" className="auth-notice">{profileWarning} <Link className="underline" href="/dashboard">Continue to dashboard</Link></div>}
+        <form onSubmit={submit} className="space-y-4">
+          <label className="block text-sm font-medium">Name<div className="auth-field mt-2"><UserRound size={18}/><input value={name} onChange={e=>setName(e.target.value)} autoComplete="name" placeholder="Your name" required maxLength={100}/></div></label>
+          <label className="block text-sm font-medium">Email address<div className="auth-field mt-2"><Mail size={18}/><input type="email" value={email} onChange={e=>setEmail(e.target.value)} autoComplete="email" placeholder="you@example.com" required /></div></label>
+          <label className="block text-sm font-medium">Password<div className="auth-field mt-2"><LockKeyhole size={18}/><input type={visible?"text":"password"} value={password} onChange={e=>setPassword(e.target.value)} autoComplete="new-password" placeholder="At least 8 characters" required minLength={8}/><button type="button" aria-label={visible?"Hide password":"Show password"} onClick={()=>setVisible(!visible)}>{visible?<EyeOff size={17}/>:<Eye size={17}/>}</button></div></label>
+          <fieldset className="space-y-2"><legend className="text-sm font-medium">Markets you follow <span className="text-muted-foreground font-normal">(optional)</span></legend><div className="flex flex-wrap gap-2">{(["bitcoin", "ethereum", "monero", "gold", "silver"] as const).map(item => <label key={item} className={`vv-interest-chip ${interests.includes(item)?"active":""}`}><input type="checkbox" className="sr-only" checked={interests.includes(item)} onChange={event=>setInterests(current=>event.target.checked?[...current,item]:current.filter(v=>v!==item))}/><span className="capitalize">{item}</span></label>)}</div></fieldset>
+          <button className="btn-primary w-full justify-center" disabled={loading || !!profileWarning} type="submit">{loading?"Creating account…":"Create account"}<ArrowRight size={16}/></button>
         </form>
-
-        <p className="mt-6 text-center text-sm text-[var(--muted-foreground)]">
-          Already have an account?{" "}
-          <Link href="/signin" className="font-medium underline hover:no-underline text-[var(--primary)]">
-            Sign in
-          </Link>
-        </p>
-
-        <div className="mt-4 flex justify-center">
-          <ThemeToggle />
-        </div>
+        <p className="mt-6 text-center text-sm text-muted-foreground">Already have an account? <Link href="/signin" className="font-semibold text-foreground hover:underline">Sign in</Link></p>
+        <p className="mt-4 text-center text-xs text-muted-foreground">Only Firebase Authentication handles your credentials.</p>
       </div>
     </main>
   );

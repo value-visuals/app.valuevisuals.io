@@ -1,21 +1,17 @@
+import { readBearer } from "@/lib/auth/serverBearer";
 // src/app/api/crypto/portfolio/bitcoin/route.ts
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
+
 import { getApiUrl } from "@/lib/getApiUrl";
 
 export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
-export const revalidate = 60;
+export const revalidate = 0;
 export const runtime = "nodejs";
 
-// Pull Bearer token from Authorization header OR __session/idToken cookies
+// Read only the explicit Firebase Authorization bearer token
 async function getAuthHeader(req: Request) {
-  const hdr = req.headers.get("authorization");
-  if (hdr?.startsWith("Bearer ")) return hdr;
-
-  const store = await cookies();
-  const token = store.get("__session")?.value || store.get("idToken")?.value;
-  return token ? `Bearer ${token}` : undefined;
+  return readBearer(req);
 }
 
 export async function GET(req: Request) {
@@ -32,14 +28,13 @@ export async function GET(req: Request) {
 
     // Compose upstream headers
     const authHeader = await getAuthHeader(req);
-    const cookieStr = req.headers.get("cookie") || "";
+    if (!authHeader) return NextResponse.json({ error: "Firebase authentication required" }, { status: 401 });
 
     const upstreamRes = await fetch(endpoint, {
       method: "GET",
       headers: {
         accept: "application/json",
         ...(authHeader ? { authorization: authHeader } : {}),
-        ...(cookieStr ? { cookie: cookieStr } : {}),
       },
       cache: "no-store",
     });

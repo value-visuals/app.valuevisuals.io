@@ -1,17 +1,17 @@
-// ── src/components/auth/RequireAuth.tsx ──────────────────────
 "use client";
-import React, { useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, type ReactNode } from "react";
 import { useAuth } from "@/components/auth/AuthProvider";
+import { useAuthModal } from "@/components/auth/AuthModal";
 
+export default function RequireAuth({ children }: { children: ReactNode }) {
+  const { user, loading } = useAuth();
+  const { openAuth } = useAuthModal();
 
-export default function RequireAuth({ children }: { children: React.ReactNode }) {
-    const { user, loading } = useAuth();
-    const router = useRouter();
-    useEffect(() => {
-        if (!loading && !user) router.replace("/signin");
-    }, [loading, user, router]);
-    if (loading) return <div className="p-6">Loading…</div>;
-    if (!user) return null; // redirected
-    return <>{children}</>;
+  useEffect(() => {
+    if (!loading && !user) openAuth("signin");
+  }, [loading, user, openAuth]);
+
+  if (loading) return <div className="enterprise-auth-loading" role="status">Loading your workspace…</div>;
+  if (!user) return <div className="enterprise-auth-loading" role="status">Sign in to access your private workspace.</div>;
+  return <>{children}</>;
 }

@@ -1,3 +1,4 @@
+import { readBearer } from "@/lib/auth/serverBearer";
 // app/api/crypto/chart/route.ts
 
 import {
@@ -5,7 +6,7 @@ import {
   NextResponse,
 } from "next/server";
 
-import { cookies } from "next/headers";
+
 
 import { getApiUrl } from "@/lib/getApiUrl";
 
@@ -34,35 +35,8 @@ const SUPPORTED_CURRENCIES = new Set([
 // Authentication
 // -----------------------------------------------------------------------------
 
-async function getAuthHeader(
-  req: Request
-) {
-  /*
-   * Prefer the Authorization header sent
-   * by authenticatedFetch().
-   */
-  const header =
-    req.headers.get("authorization");
-
-  if (
-    header?.startsWith("Bearer ")
-  ) {
-    return header;
-  }
-
-  /*
-   * Fallback for requests where the token
-   * is stored in the session cookie.
-   */
-  const store = await cookies();
-
-  const token =
-    store.get("__session")?.value ||
-    store.get("idToken")?.value;
-
-  return token
-    ? `Bearer ${token}`
-    : undefined;
+async function getAuthHeader(req: Request) {
+  return readBearer(req);
 }
 
 // -----------------------------------------------------------------------------

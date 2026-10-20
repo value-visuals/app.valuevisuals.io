@@ -1,19 +1,15 @@
+import { readBearer } from "@/lib/auth/serverBearer";
 // src/app/api/polymarket/silver/route.ts
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
 import { getApiUrl } from "@/lib/getApiUrl";
 
 export const dynamic = 'force-dynamic';
 export const fetchCache = 'force-no-store';
-export const revalidate = 60;
+export const revalidate = 0;
 export const runtime = "nodejs";
 
 async function getAuthHeader(req: Request) {
-  const hdr = req.headers.get("authorization");
-  if (hdr?.startsWith("Bearer ")) return hdr;
-  const store = await cookies();
-  const token = store.get("__session")?.value || store.get("idToken")?.value;
-  return token ? `Bearer ${token}` : undefined;
+  return readBearer(req);
 }
 
 export async function GET(request: Request) {
@@ -40,13 +36,10 @@ export async function GET(request: Request) {
       method: "GET",
       headers: { accept: "application/json", Authorization: auth },
       cache: "no-store",
-      // @ts-ignore
-      next: { revalidate },
     });
 
     if (!resp.ok) {
-      const text = await resp.text().catch(() => "");
-      return NextResponse.json({ error: `Upstream error: ${resp.status} ${text}` }, { status: 502 });
+      return NextResponse.json({ error: "Market prediction feed unavailable" }, { status: resp.status === 401 ? 401 : 502 });
     }
 
     const data = await resp.json();

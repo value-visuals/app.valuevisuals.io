@@ -1,16 +1,14 @@
+
 import type {
   CoinStats,
+  CryptoAssetStats,
   CryptoSummary,
   MetalsSummary,
   MarketCurrency,
 } from "@/stores/marketStore";
-
 import { authenticatedFetch } from "@/lib/auth/authenticatedFetch";
 
-// -----------------------------------------------------------------------------
-// Types
-// -----------------------------------------------------------------------------
-
+// Preserve existing exported types and return contract.
 export type CryptoChartCandle = {
   t: number;
   o: number;
@@ -37,430 +35,144 @@ export type CryptoChart = {
 export type LoadResult = {
   cryptoSummary: CryptoSummary;
   metalsSummary: MetalsSummary;
-
-  /*
-   * Firebase-backed crypto charts.
-   *
-   * Keys:
-   *
-   *   BTC
-   *   ETH
-   *   XMR
-   */
-  cryptoCharts: Record<
-    string,
-    CryptoChart
-  >;
-
-  /*
-   * Individual crypto stats.
-   *
-   * These use the same existing endpoints
-   * used by the individual crypto pages
-   * and CryptoTopTiles.
-   *
-   * CoinStats includes:
-   *
-   *   priceUsd
-   *   change24hPct
-   *   change24h
-   *   marketCapUsd
-   *   volume24hUsd
-   *   dominancePct
-   */
+  cryptoCharts: Record<string, CryptoChart>;
   bitcoinStats: CoinStats;
   ethereumStats: CoinStats;
   moneroStats: CoinStats;
 };
 
-// -----------------------------------------------------------------------------
-// Configuration
-// -----------------------------------------------------------------------------
+type CryptoAsset = "bitcoin" | "ethereum" | "monero";
 
-const CRYPTO_SYMBOLS = [
-  "BTC",
-  "ETH",
-  "XMR",
-] as const;
-
-const METAL_BASES = [
-  "gold",
-  "silver",
-] as const;
-
-const DEFAULT_CHART_DAYS = 30;
-
-// -----------------------------------------------------------------------------
-// Helpers
-// -----------------------------------------------------------------------------
-
-async function fetchJson<T>(
-  url: string
-): Promise<T> {
-  const response =
-    await authenticatedFetch(url);
+async function fetchJson<T>(url: string): Promise<T> {
+  const response = await authenticatedFetch(url);
 
   if (!response.ok) {
-    const body =
-      await response
-        .json()
-        .catch(() => ({}));
+    const body = await response.json().catch(() => ({}));
 
     const error = new Error(
       body?.error ||
-        `Request failed: ${response.status} ${response.statusText}`
+      `Request failed: ${response.status} ${response.statusText}`
     );
 
-    /*
-     * Preserve backend auth information
-     * for later handling.
-     */
-    (error as any).status =
-      response.status;
-
-    (error as any).code =
-      body?.code;
-
-    /*
-     * Preserve the requested URL so the
-     * caller can identify which market
-     * request failed.
-     */
-    (error as any).url =
-      url;
+    Object.assign(error, {
+      status: response.status,
+      code: body?.code,
+      url,
+    });
 
     throw error;
   }
 
-  return response.json();
+  return response.json() as Promise<T>;
 }
 
-// -----------------------------------------------------------------------------
-// Crypto stats loader
-// -----------------------------------------------------------------------------
+function numberOrNull(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") {
+    return null;
+  }
 
-async function fetchCryptoStats(
-  asset:
-    | "bitcoin"
-    | "ethereum"
-    | "monero",
-  currency: MarketCurrency
-): Promise<CoinStats> {
-  /*
-   * These are the EXISTING endpoints
-   * already used by marketStore.ts.
-   *
-   * Do not use:
-   *
-   *   /api/crypto/btc
-   *   /api/crypto/eth
-   *   /api/crypto/xmr
-   */
-  const params =
-    new URLSearchParams();
-
-  params.set(
-    "currency",
-    currency
-  );
-
-  const url =
-    `/api/crypto/${asset}?${params.toString()}`;
-
-  return fetchJson<CoinStats>(
-    url
-  );
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
 }
 
-// -----------------------------------------------------------------------------
-// Load all crypto stats
-// -----------------------------------------------------------------------------
-
-async function fetchAllCryptoStats(
+/**
+ * Build existing CoinStats from the currency-aware summary.
+ * This eliminates three duplicate crypto-stat requests.
+ *
+ * Legacy CoinStats fields ending in "Usd" contain values
+ * in the selected currency for this dashboard loader.
+ */
+function statsFromSummary(
+  summary: CryptoSummary,
+  asset: CryptoAsset,
   currency: MarketCurrency
-): Promise<{
-  bitcoinStats: CoinStats;
-  ethereumStats: CoinStats;
-  moneroStats: CoinStats;
-}> {
-  /*
-   * Load the same individual stats
-   * that become available when visiting
-   * /bitcoin, /ethereum and /monero.
-   *
-   * This makes dominance available on
-   * the initial dashboard load instead
-   * of requiring the user to visit each
-   * asset page first.
-   */
-  const [
-    bitcoinStats,
-    ethereumStats,
-    moneroStats,
-  ] = await Promise.all([
-    fetchCryptoStats(
-      "bitcoin",
-      currency
-    ),
+): CoinStats {
+  const stats = summary[`${asset}_stats`] as
+    | CryptoAssetStats
+    | undefined;
 
-    fetchCryptoStats(
-      "ethereum",
-      currency
-    ),
+  const price =
+    numberOrNull(stats?.price) ??
+    numberOrNull(summary[asset]?.[currency]);
 
-    fetchCryptoStats(
-      "monero",
-      currency
-    ),
-  ]);
+  const marketCap = numberOrNull(stats?.marketCap);
+
+  const globalMarketCap = numberOrNull(
+    summary.global_market_cap?.[currency]
+  );
+
+  const change24hPct = numberOrNull(stats?.change24hPct);
+
+  const change24h =
+    numberOrNull(stats?.change24h) ??
+    (change24hPct === null ? null : change24hPct / 100);
+
+  // CoinStats dominance is a fraction, not a percentage.
+  const dominancePct =
+    marketCap !== null &&
+    globalMarketCap !== null &&
+    globalMarketCap > 0
+      ? marketCap / globalMarketCap
+      : null;
 
   return {
-    bitcoinStats,
-    ethereumStats,
-    moneroStats,
+    priceUsd: price,
+    marketCapUsd: marketCap,
+    volume24hUsd: numberOrNull(stats?.volume24h),
+    change24h,
+    change24hPct,
+    dominancePct,
   };
 }
 
-// -----------------------------------------------------------------------------
-// Crypto chart loader
-// -----------------------------------------------------------------------------
-
-async function fetchCryptoChart(
-  symbol: string,
-  currency: MarketCurrency,
-  days: number
-): Promise<CryptoChart> {
-  const params =
-    new URLSearchParams();
-
-  /*
-   * The frontend chart route accepts
-   * coin names as well as symbols.
-   *
-   * Use the symbol here because it maps
-   * directly to the Firebase-backed
-   * backend API.
-   */
-  params.set(
-    "coin",
-    symbol.toLowerCase()
-  );
-
-  params.set(
-    "days",
-    String(days)
-  );
-
-  params.set(
-    "currency",
-    currency
-  );
-
-  const url =
-    `/api/crypto/chart?${params.toString()}`;
-
-  return fetchJson<CryptoChart>(
-    url
-  );
+/** The backend returns both XAU and XAG when `base` is omitted.
+ * One network request replaces two duplicate conversions / Firestore lookups.
+ */
+export async function fetchMetalsSummary(currency: MarketCurrency): Promise<MetalsSummary> {
+  const query = new URLSearchParams({ currency });
+  const response = await fetchJson<MetalsSummary>(`/api/metals/summary?${query}`);
+  if (!Array.isArray(response?.items)) throw new Error("Invalid metals market response");
+  return response;
 }
 
-// -----------------------------------------------------------------------------
-// Load all crypto charts
-// -----------------------------------------------------------------------------
 
-async function fetchCryptoCharts(
-  currency: MarketCurrency,
-  days: number
-): Promise<
-  Record<string, CryptoChart>
-> {
-  /*
-   * Load BTC, ETH and XMR in parallel.
-   *
-   * Each request goes through:
-   *
-   *   authenticatedFetch()
-   *       ↓
-   *   Next.js /api/crypto/chart
-   *       ↓
-   *   Node API /api/crypto/chart
-   *       ↓
-   *   Firebase
-   */
-  const results =
-    await Promise.all(
-      CRYPTO_SYMBOLS.map(
-        async (symbol) => {
-          const chart =
-            await fetchCryptoChart(
-              symbol,
-              currency,
-              days
-            );
-
-          return [
-            symbol,
-            chart,
-          ] as const;
-        }
-      )
-    );
-
-  return Object.fromEntries(
-    results
-  );
-}
-
-// -----------------------------------------------------------------------------
-// Load metals
-// -----------------------------------------------------------------------------
-
-async function fetchMetalsSummary(
-  currency: MarketCurrency
-): Promise<MetalsSummary> {
-  /*
-   * /api/metals/summary accepts a
-   * single base at a time.
-   *
-   * Therefore we explicitly request
-   * both Gold (XAU) and Silver (XAG)
-   * and combine their items.
-   *
-   * This is important because omitting
-   * `base` causes the API route to
-   * default to XAU.
-   */
-  const results =
-    await Promise.all(
-      METAL_BASES.map(
-        async (metal) => {
-          const params =
-            new URLSearchParams();
-
-          params.set(
-            "base",
-            metal
-          );
-
-          params.set(
-            "currency",
-            currency
-          );
-
-          const url =
-            `/api/metals/summary?${params.toString()}`;
-
-          return fetchJson<MetalsSummary>(
-            url
-          );
-        }
-      )
-    );
-
-  /*
-   * Preserve the MetalsSummary shape
-   * already consumed throughout the app.
-   *
-   * The important part for MarketList
-   * is that `items` now contains both
-   * the XAU and XAG entries.
-   */
-  const items =
-    results.flatMap(
-      (result) =>
-        Array.isArray(result?.items)
-          ? result.items
-          : []
-    );
-
-  /*
-   * Preserve any additional metadata
-   * from the first response while
-   * replacing items with the combined
-   * Gold + Silver collection.
-   */
+/** Independently request crypto data so metal quote failures do not blank it. */
+export async function fetchCryptoMarketData(currency: MarketCurrency): Promise<Pick<LoadResult, "cryptoSummary" | "bitcoinStats" | "ethereumStats" | "moneroStats">> {
+  const summary = await fetchJson<CryptoSummary>(`/api/crypto/summary?currency=${encodeURIComponent(currency)}`);
   return {
-    ...(results[0] ?? {}),
-    items,
+    cryptoSummary: summary,
+    bitcoinStats: statsFromSummary(summary, "bitcoin", currency),
+    ethereumStats: statsFromSummary(summary, "ethereum", currency),
+    moneroStats: statsFromSummary(summary, "monero", currency),
   };
 }
-
-// -----------------------------------------------------------------------------
-// Load market data
-// -----------------------------------------------------------------------------
 
 export async function loadMarketData(
   currency: MarketCurrency
 ): Promise<LoadResult> {
-  const currencyParam =
-    encodeURIComponent(
-      currency
-    );
-
-  // ---------------------------------------------------------------------------
-  // Summary endpoint
-  // ---------------------------------------------------------------------------
-
-  const cryptoUrl =
-    `/api/crypto/summary?currency=${currencyParam}`;
-
-  /*
-   * Metals are loaded through
-   * fetchMetalsSummary() because the
-   * API requires one base per request.
-   *
-   * Do not use:
-   *
-   *   /api/metals/summary?currency=...
-   *
-   * by itself because that endpoint
-   * defaults to XAU.
-   */
-
-  // ---------------------------------------------------------------------------
-  // Load summaries, individual crypto stats and charts
-  // ---------------------------------------------------------------------------
-
-  const [
-    cryptoSummary,
-    metalsSummary,
-    cryptoCharts,
-    cryptoStats,
-  ] = await Promise.all([
-    fetchJson<CryptoSummary>(
-      cryptoUrl
-    ),
-
-    fetchMetalsSummary(
-      currency
-    ),
-
-    fetchCryptoCharts(
-      currency,
-      DEFAULT_CHART_DAYS
-    ),
-
-    fetchAllCryptoStats(
-      currency
-    ),
+  // Fetch only data required for dashboard initialization.
+  // Charts remain loaded independently by MarketChart/SWR.
+  const [cryptoResult, metalsResult] = await Promise.allSettled([
+    fetchCryptoMarketData(currency),
+    fetchMetalsSummary(currency),
   ]);
-
-  // ---------------------------------------------------------------------------
-  // Return complete market dataset
-  // ---------------------------------------------------------------------------
+  // Individual crypto pages must not fail merely because metal quotes failed.
+  if (cryptoResult.status === "rejected") throw cryptoResult.reason;
+  const crypto = cryptoResult.value;
+  const metalsSummary: MetalsSummary = metalsResult.status === "fulfilled"
+    ? metalsResult.value
+    : { items: [] };
+  const { cryptoSummary, bitcoinStats, ethereumStats, moneroStats } = crypto;
 
   return {
     cryptoSummary,
     metalsSummary,
-    cryptoCharts,
 
-    bitcoinStats:
-      cryptoStats.bitcoinStats,
+    // Preserve the existing interface.
+    cryptoCharts: {},
 
-    ethereumStats:
-      cryptoStats.ethereumStats,
-
-    moneroStats:
-      cryptoStats.moneroStats,
+    bitcoinStats,
+    ethereumStats,
+    moneroStats,
   };
 }

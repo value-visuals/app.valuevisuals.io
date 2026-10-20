@@ -1,10 +1,15 @@
+"use client";
+
 import Link from "next/link";
-import { headers } from "next/headers";
+import { Suspense } from "react";
+import useSWR from "swr";
+import { useSearchParams } from "next/navigation";
+import { authenticatedFetch } from "@/lib/auth/authenticatedFetch";
+import { useAuth } from "@/components/auth/AuthProvider";
 import { ArrowUpRight, ArrowDownRight } from "lucide-react";
 import PortfolioChart from "@/components/charts/PortfolioChart";
 
 
-export const dynamic = "force-dynamic";
 
 // ======================= Types (string-friendly) =======================
 type Integerish = string | number; // backend may send bigint-as-string
@@ -161,38 +166,17 @@ function Delta({ changeFraction }: { changeFraction: number | null | undefined }
   if (changeFraction == null) return <span className="text-muted-foreground">—</span>;
   const positive = changeFraction >= 0;
   return (
-    <span className={`flex items-center gap-1 ${positive ? "text-green-600" : "text-red-600"}`}>
+    <span className={`flex items-center gap-1 ${positive ? "text-foreground" : "text-red-600"}`}>
       {positive ? <ArrowUpRight size={16} /> : <ArrowDownRight size={16} />}
       {formatPercent(changeFraction)}
     </span>
   );
 }
 
-async function makeBaseAndHeaders() {
-  const h = await headers();
-  const proto =
-    h.get("x-forwarded-proto") ??
-    (process.env.NODE_ENV === "production" ? "https" : "http");
-  const host =
-    h.get("x-forwarded-host") ??
-    h.get("host") ??
-    process.env.VERCEL_URL ??
-    "localhost:3000";
-  const base = host.startsWith("http") ? host : `${proto}://${host}`;
-
-  const forwardHeaders: Record<string, string> = { accept: "application/json" };
-  const cookie = h.get("cookie");
-  const authorization = h.get("authorization");
-  if (cookie) forwardHeaders.cookie = cookie;
-  if (authorization) forwardHeaders.authorization = authorization;
-
-  return { base, forwardHeaders };
-}
-
-async function fetchJSON<T>(base: string, path: string, headers: Record<string,string>) {
-  const res = await fetch(`${base}${path}`, { cache: "no-store", headers });
+async function fetchJSON<T>(path: string) {
+  const res = await authenticatedFetch(path);
   let data: T | undefined;
-  try { data = (await res.json()) as T; } catch {}
+  try { data = (await res.json()) as T; } catch { /* no JSON */ }
   return { ok: res.ok, status: res.status, data };
 }
 
@@ -204,10 +188,10 @@ function sumBigintWalletField(wallets: WalletStat[], key: keyof WalletStat): big
   return wallets.reduce<bigint>((acc, w) => acc + toBig(w[key] as Integerish), 0n);
 }
 
-async function getBtcPortfolioUsd(base: string, headers: Record<string, string>) {
+async function getBtcPortfolioUsd() {
   const [summary, stats] = await Promise.all([
-    fetchJSON<SummaryResponse>(base, "/api/crypto/portfolio/bitcoin?view=summary", headers),
-    fetchJSON<CoinStats>(base, "/api/crypto/bitcoin", headers),
+    fetchJSON<SummaryResponse>("/api/crypto/portfolio/bitcoin?view=summary"),
+    fetchJSON<CoinStats>("/api/crypto/bitcoin"),
   ]);
   const btcUsd = toNumNull(stats.data?.priceUsd) ?? 0;
   const satsBalance = toNum(summary.data?.totals?.balance ?? 0);
@@ -215,10 +199,10 @@ async function getBtcPortfolioUsd(base: string, headers: Record<string, string>)
   return { usd, satsBalance, btcUsd };
 }
 
-async function getEthPortfolioUsd(base: string, headers: Record<string, string>) {
+async function getEthPortfolioUsd() {
   const [summary, stats] = await Promise.all([
-    fetchJSON<SummaryResponse>(base, "/api/crypto/portfolio/ethereum?view=summary", headers),
-    fetchJSON<CoinStats>(base, "/api/crypto/ethereum", headers),
+    fetchJSON<SummaryResponse>("/api/crypto/portfolio/ethereum?view=summary"),
+    fetchJSON<CoinStats>("/api/crypto/ethereum"),
   ]);
   const ethUsd = toNumNull(stats.data?.priceUsd) ?? 0;
   const wallets = summary.data?.wallets ?? [];
@@ -257,13 +241,20 @@ function CompareTile({
 }
 
 // ======================= BTC & ETH Views =======================
-async function BitcoinView() {
-  const { base, forwardHeaders } = await makeBaseAndHeaders();
-  const [summary, chart, stats] = await Promise.all([
-    fetchJSON<SummaryResponse>(base, "/api/crypto/portfolio/bitcoin?view=summary", forwardHeaders),
-    fetchJSON<ChartResponse>(base, "/api/crypto/portfolio/bitcoin?view=chart&range=30d", forwardHeaders),
-    fetchJSON<CoinStats>(base, "/api/crypto/bitcoin", forwardHeaders),
-  ]);
+function BitcoinView() {
+  const { user } = useAuth();
+  const { data, error, isLoading } = useSWR(user ? ["vv:portfolio:btc", user.uid] : null, async () => {
+    const [summary, chart, stats, other] = await Promise.all([
+      fetchJSON<SummaryResponse>("/api/crypto/portfolio/bitcoin?view=summary"),
+      fetchJSON<ChartResponse>("/api/crypto/portfolio/bitcoin?view=chart&range=30d"),
+      fetchJSON<CoinStats>("/api/crypto/bitcoin"),
+      getEthPortfolioUsd(),
+    ]);
+    return { summary, chart, stats, other };
+  }, { refreshInterval: 60_000 });
+  if (isLoading) return <div className="p-8 text-muted-foreground">Loading Bitcoin portfolio…</div>;
+  if (error || !data) return <div role="alert" className="p-8">Unable to load portfolio data.</div>;
+  const { summary, chart, stats, other } = data;
 
   if (summary.status === 401 || chart.status === 401) {
     return (
@@ -296,7 +287,7 @@ async function BitcoinView() {
   const totalTxs = wallets.reduce((sum, w) => sum + (typeof w.txCount === "number" ? w.txCount : 0), 0);
 
   // ===== Also compute ETH to compare =====
-  const other = await getEthPortfolioUsd(base, forwardHeaders);
+
 
   return (
     <main className="mx-auto max-w-4xl p-1 pt-6 space-y-8">
@@ -358,15 +349,20 @@ async function BitcoinView() {
 }
 
 // Fully updated EthereumView (drop-in)
-async function EthereumView() {
-  const { base, forwardHeaders } = await makeBaseAndHeaders();
-  const [summary, chart, stats] = await Promise.all([
-    // ✅ Updated to the canonical ETH portfolio endpoints (aggregate multiple wallets)
-    fetchJSON<SummaryResponse>(base, "/api/crypto/portfolio/ethereum?view=summary", forwardHeaders),
-    fetchJSON<ChartResponse>(base, "/api/crypto/portfolio/ethereum?view=chart&range=30d", forwardHeaders),
-    // ✅ Coin price/stats endpoint for ETH
-    fetchJSON<CoinStats>(base, "/api/crypto/ethereum", forwardHeaders),
-  ]);
+function EthereumView() {
+  const { user } = useAuth();
+  const { data, error, isLoading } = useSWR(user ? ["vv:portfolio:eth", user.uid] : null, async () => {
+    const [summary, chart, stats, other] = await Promise.all([
+      fetchJSON<SummaryResponse>("/api/crypto/portfolio/ethereum?view=summary"),
+      fetchJSON<ChartResponse>("/api/crypto/portfolio/ethereum?view=chart&range=30d"),
+      fetchJSON<CoinStats>("/api/crypto/ethereum"),
+      getBtcPortfolioUsd(),
+    ]);
+    return { summary, chart, stats, other };
+  }, { refreshInterval: 60_000 });
+  if (isLoading) return <div className="p-8 text-muted-foreground">Loading Ethereum portfolio…</div>;
+  if (error || !data) return <div role="alert" className="p-8">Unable to load portfolio data.</div>;
+  const { summary, chart, stats, other } = data;
 
   if (summary.status === 401 || chart.status === 401) {
     return (
@@ -410,7 +406,7 @@ async function EthereumView() {
   const totalTxs = wallets.reduce((sum, w) => sum + (typeof w.txCount === "number" ? w.txCount : 0), 0);
 
   // ===== Also compute BTC to compare =====
-  const other = await getBtcPortfolioUsd(base, forwardHeaders);
+
 
   return (
     <main className="mx-auto max-w-4xl p-1 pt-6 space-y-8">
@@ -589,38 +585,19 @@ function FlowTable({
 
 
 // ======================= Main Switcher =======================
-export default async function PortfolioSwitcherPage({
-  searchParams,
-}: {
-  // Next 15 async dynamic APIs: this is a Promise
-  searchParams?: Promise<Record<string, string | string[] | undefined>>;
-}) {
-  const sp = (await searchParams) ?? {};
-  const chainRaw = Array.isArray(sp.chain) ? sp.chain[0] : sp.chain;
-  const chain = (chainRaw || "btc").toLowerCase();
+export default function PortfolioSwitcherPage() {
+  return <Suspense fallback={<div className="p-8 text-muted-foreground">Loading portfolio…</div>}><PortfolioContent /></Suspense>;
+}
+
+function PortfolioContent() {
+  const sp = useSearchParams();
+  const chain = sp.get("chain") === "eth" ? "eth" : "btc";
   const isEth = chain === "eth";
-
-  return (
-    <div>
-      {/* Tabs */}
-      <div className="mx-auto max-w-4xl px-1 pt-2">
-        <div className="inline-flex items-center gap-2 rounded-xl border p-1 bg-white">
-          <Link
-            href="?chain=btc"
-            className={`px-3 py-1.5 rounded-lg text-sm ${!isEth ? "bg-black text-white" : "text-black"}`}
-          >
-            Bitcoin
-          </Link>
-          <Link
-            href="?chain=eth"
-            className={`px-3 py-1.5 rounded-lg text-sm ${isEth ? "bg-black text-white" : "text-black"}`}
-          >
-            Ethereum
-          </Link>
-        </div>
-      </div>
-
-      {isEth ? await EthereumView() : await BitcoinView()}
-    </div>
-  );
+  return <div>
+    <div className="mx-auto max-w-4xl px-1 pt-2"><div className="inline-flex items-center gap-2 rounded-xl border border-border p-1 bg-card">
+      <Link href="?chain=btc" className={`px-3 py-1.5 rounded-lg text-sm ${!isEth ? "bg-primary text-primary-foreground" : "text-foreground"}`}>Bitcoin</Link>
+      <Link href="?chain=eth" className={`px-3 py-1.5 rounded-lg text-sm ${isEth ? "bg-primary text-primary-foreground" : "text-foreground"}`}>Ethereum</Link>
+    </div></div>
+    {isEth ? <EthereumView/> : <BitcoinView/>}
+  </div>;
 }

@@ -1,4 +1,6 @@
 "use client";
+import { authenticatedFetch } from "@/lib/auth/authenticatedFetch";
+import { useAuth } from "@/components/auth/AuthProvider";
 
 import useSWR from "swr";
 import Link from "next/link";
@@ -57,7 +59,7 @@ type MarketAnalysis = {
 // -----------------------------------------------------------------------------
 
 const fetcher = (url: string) =>
-  fetch(url, { cache: "no-store" }).then((r) => {
+  authenticatedFetch(url, { cache: "no-store" }).then((r) => {
     if (!r.ok) {
       throw new Error(`Failed: ${r.status}`);
     }
@@ -584,14 +586,14 @@ function ConsensusSummary({
 
   const sentimentColor =
     analysis.sentiment === "bullish"
-      ? "text-emerald-600 dark:text-emerald-400"
+      ? "text-foreground dark:text-foreground"
       : analysis.sentiment === "bearish"
         ? "text-rose-600 dark:text-rose-400"
         : "text-amber-600 dark:text-amber-400";
 
   const barColor =
     analysis.sentiment === "bullish"
-      ? "bg-emerald-500"
+      ? "bg-slate-500"
       : analysis.sentiment === "bearish"
         ? "bg-rose-500"
         : "bg-amber-500";
@@ -734,7 +736,7 @@ function ConsensusSummary({
               className={`mt-2 text-lg font-bold ${
                 analysis.strongestSignal.direction ===
                 "bullish"
-                  ? "text-emerald-600 dark:text-emerald-400"
+                  ? "text-foreground dark:text-foreground"
                   : "text-rose-600 dark:text-rose-400"
               }`}
             >
@@ -822,6 +824,7 @@ export default function Polymarket({
   className?: string;
   asset?: string;
 }) {
+  const { user } = useAuth();
   const [sortBy, setSortBy] = useState<
     "volume" | "liquidity"
   >("volume");
@@ -844,8 +847,8 @@ export default function Polymarket({
 
   const { data, error, isLoading, mutate } =
     useSWR<ApiResponse>(
-      `/api/polymarket/${asset}?${qs.toString()}`,
-      fetcher,
+      user ? [`/api/polymarket/${asset}?${qs.toString()}`, user.uid] : null,
+      ([url]: [string, string]) => fetcher(url),
       {
         refreshInterval: livePrices ? 15000 : 60000,
       }
@@ -1076,7 +1079,7 @@ export default function Polymarket({
                         <div
                           className={`text-2xl font-bold ${
                             yesIsLeading
-                              ? "text-emerald-600 dark:text-emerald-400"
+                              ? "text-foreground dark:text-foreground"
                               : ""
                           }`}
                         >
@@ -1108,7 +1111,7 @@ export default function Polymarket({
 
                     <div className="mt-3 h-2 overflow-hidden rounded-full bg-rose-500/20">
                       <div
-                        className="h-full rounded-full bg-emerald-500"
+                        className="h-full rounded-full bg-slate-500"
                         style={{
                           width: `${Math.min(
                             Math.max(
@@ -1125,12 +1128,12 @@ export default function Polymarket({
                   {/* Live prices */}
                   {live && (
                     <div className="mt-4 flex gap-2">
-                      <div className="rounded-md bg-emerald-500/10 px-2 py-1 text-xs">
-                        <span className="mr-1 text-[10px] uppercase text-emerald-700/70 dark:text-emerald-400/70">
+                      <div className="rounded-md bg-muted px-2 py-1 text-xs">
+                        <span className="mr-1 text-[10px] uppercase text-muted-foreground dark:text-muted-foreground">
                           Buy
                         </span>
 
-                        <span className="font-semibold text-emerald-700 dark:text-emerald-400">
+                        <span className="font-semibold text-foreground dark:text-foreground">
                           {live.buy ?? "—"}
                         </span>
                       </div>

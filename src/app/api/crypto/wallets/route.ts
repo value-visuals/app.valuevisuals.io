@@ -1,20 +1,16 @@
+import { readBearer } from "@/lib/auth/serverBearer";
 // src/app/api/crypto/portfolio/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { cookies } from "next/headers";
 import { getApiUrl } from "@/lib/getApiUrl";
 
 export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
-export const revalidate = 60;
+export const revalidate = 0;
 export const runtime = "nodejs";
 
 // Same auth pattern as your bitcoin route
 async function getAuthHeader(req: Request) {
-  const hdr = req.headers.get("authorization");
-  if (hdr?.startsWith("Bearer ")) return hdr;
-  const store = await cookies();
-  const token = store.get("__session")?.value || store.get("idToken")?.value;
-  return token ? `Bearer ${token}` : undefined;
+  return readBearer(req);
 }
 
 // ---------- GET /api/crypto/portfolio?chain=btc|eth ----------
@@ -24,6 +20,7 @@ export async function GET(req: NextRequest) {
   const upstreamUrl = `${getApiUrl()}/api/user/wallets${chain ? `?chain=${encodeURIComponent(chain)}` : ""}`;
 
   const auth = await getAuthHeader(req);
+  if (!auth) return NextResponse.json({ error: "Firebase authentication required" }, { status: 401 });
   const headers: Record<string, string> = {};
   if (auth) headers["authorization"] = auth;
 
@@ -46,6 +43,7 @@ export async function POST(req: NextRequest) {
   }
 
   const auth = await getAuthHeader(req);
+  if (!auth) return NextResponse.json({ error: "Firebase authentication required" }, { status: 401 });
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (auth) headers["authorization"] = auth;
 
@@ -75,6 +73,7 @@ export async function PUT(req: NextRequest) {
   }
 
   const auth = await getAuthHeader(req);
+  if (!auth) return NextResponse.json({ error: "Firebase authentication required" }, { status: 401 });
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (auth) headers["authorization"] = auth;
 
@@ -115,6 +114,7 @@ export async function DELETE(req: NextRequest) {
   }
 
   const auth = await getAuthHeader(req);
+  if (!auth) return NextResponse.json({ error: "Firebase authentication required" }, { status: 401 });
   const headers: Record<string, string> = {};
   if (auth) headers["authorization"] = auth;
   if (bodyText) headers["Content-Type"] = "application/json";

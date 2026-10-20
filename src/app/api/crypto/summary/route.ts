@@ -1,32 +1,16 @@
+import { readBearer } from "@/lib/auth/serverBearer";
 // src/app/api/crypto/summary/route.ts
 
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
 import { getApiUrl } from "@/lib/getApiUrl";
 
 export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
-export const revalidate = 60;
+export const revalidate = 0;
 export const runtime = "nodejs";
 
 async function getAuthHeader(req: Request) {
-  const hdr =
-    req.headers.get("authorization");
-
-  if (hdr?.startsWith("Bearer ")) {
-    return hdr;
-  }
-
-  const store = await cookies();
-
-  const token =
-    store.get("__session")?.value ||
-    store.get("idToken")?.value ||
-    undefined;
-
-  return token
-    ? `Bearer ${token}`
-    : undefined;
+  return readBearer(req);
 }
 
 export async function GET(req: Request) {
@@ -76,11 +60,6 @@ export async function GET(req: Request) {
           headers: {
             Authorization: auth,
           },
-
-          // @ts-ignore
-          next: {
-            revalidate,
-          },
         }
       ),
 
@@ -92,19 +71,17 @@ export async function GET(req: Request) {
           headers: {
             Authorization: auth,
           },
-
-          // @ts-ignore
-          next: {
-            revalidate,
-          },
         }
       ),
     ]);
 
     if (!summaryRes.ok) {
-      throw new Error(
-        `Crypto summary request failed: ${summaryRes.status}`
-      );
+      return NextResponse.json({ error: "Market summary unavailable" }, {
+        status: summaryRes.status === 401 ? 401 : 502,
+      });
+    }
+    if (globalRes.status === 401) {
+      return NextResponse.json({ error: "Firebase session rejected" }, { status: 401 });
     }
 
     const summary =

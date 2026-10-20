@@ -28,4 +28,4 @@ RUN npm prune --production
 
 EXPOSE 3015
 
-CMD ["npm", "start"]
+CMD ["npm", "run", "start", "--", "-p", "3015"]

@@ -1,5 +1,5 @@
+import { readBearer } from "@/lib/auth/serverBearer";
 import { NextRequest, NextResponse } from "next/server";
-import { cookies } from "next/headers";
 import { getApiUrl } from "@/lib/getApiUrl";
 
 export const dynamic = "force-dynamic";
@@ -8,25 +8,14 @@ export const revalidate = 0;
 export const runtime = "nodejs";
 
 async function getAuthHeader(req: Request) {
-  const hdr = req.headers.get("authorization");
-
-  if (hdr?.startsWith("Bearer ")) {
-    return hdr;
-  }
-
-  const store = await cookies();
-
-  const token =
-    store.get("__session")?.value ||
-    store.get("idToken")?.value;
-
-  return token ? `Bearer ${token}` : undefined;
+  return readBearer(req);
 }
 
 export async function GET(req: NextRequest) {
   const headers: Record<string, string> = {};
 
   const auth = await getAuthHeader(req);
+  if (!auth) return NextResponse.json({ error: "Firebase authentication required" }, { status: 401 });
 
   if (auth) {
     headers.authorization = auth;

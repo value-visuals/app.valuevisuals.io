@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { useCurrency } from "@/components/Currency";
 import {
   ArrowUpRight,
   ArrowDownRight,
@@ -34,34 +35,9 @@ const assetConfig: Record<
   },
 };
 
-function formatPrice(
-  value: number | null | undefined
-) {
-  if (
-    value == null ||
-    Number.isNaN(value)
-  ) {
-    return "—";
-  }
-
-  if (value >= 1) {
-    return `$${value.toLocaleString(
-      undefined,
-      {
-        minimumFractionDigits:
-          value % 1 === 0 ? 0 : 2,
-        maximumFractionDigits: 2,
-      }
-    )}`;
-  }
-
-  return `$${value.toLocaleString(
-    undefined,
-    {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 4,
-    }
-  )}`;
+function formatPrice(value: number | null | undefined, currency: string) {
+  if (value == null || !Number.isFinite(value)) return "—";
+  return new Intl.NumberFormat("en-US", { style: "currency", currency, maximumFractionDigits: value >= 1 ? 2 : 4 }).format(value);
 }
 
 function getChangeFraction(
@@ -118,7 +94,7 @@ function Delta({
     <span
       className={`flex items-center gap-1 ${
         positive
-          ? "text-green-600"
+          ? "text-foreground"
           : "text-red-600"
       }`}
     >
@@ -138,6 +114,7 @@ export default function CommodityTopTiles({
   className = "",
 }: CommodityTopTilesProps) {
   const config = assetConfig[asset];
+  const { currency } = useCurrency();
 
   const summary = useMarketStore(
     (state) =>
@@ -164,15 +141,11 @@ export default function CommodityTopTiles({
     (state) => state.fetchMetal
   );
 
+  // Currency is a first-class feature. Refetch metals when the display
+  // currency changes, not only on initial mount.
   useEffect(() => {
-    if (!summary) {
-      fetchMetal(asset);
-    }
-  }, [
-    asset,
-    summary,
-    fetchMetal,
-  ]);
+    void fetchMetal(asset, currency.toLowerCase() as "usd" | "eur" | "gbp");
+  }, [asset, currency, fetchMetal]);
 
   const tile =
     "rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4 shadow-sm transition-colors min-w-0";
@@ -193,14 +166,14 @@ export default function CommodityTopTiles({
       {/* Price */}
       <div className={tile}>
         <div className="text-xs font-medium text-muted-foreground">
-          {config.name} ({config.symbol}) Price
+          {config.name} ({config.symbol}) Price · {currency}
         </div>
 
         <div className="mt-2 text-2xl font-semibold text-[var(--foreground)]">
           {unavailable
             ? "—"
             : formatPrice(
-                summary?.price
+                summary?.price, currency
               )}
         </div>
 
@@ -218,13 +191,13 @@ export default function CommodityTopTiles({
       {/* 24h Change */}
       <div className={tile}>
         <div className="text-xs font-medium text-muted-foreground">
-          24h Change $
+          24h Change ({currency})
         </div>
 
         <div
           className={`mt-2 text-2xl font-semibold ${
             positive
-              ? "text-emerald-500"
+              ? "text-foreground"
               : "text-red-500"
           }`}
         >
@@ -233,7 +206,7 @@ export default function CommodityTopTiles({
             : `${positive ? "▲" : "▼"} ${formatPrice(
                 Math.abs(
                   summary?.change24h ?? 0
-                )
+                ), currency
               )}`}
         </div>
       </div>
@@ -248,7 +221,7 @@ export default function CommodityTopTiles({
           {unavailable
             ? "—"
             : formatPrice(
-                summary?.high24h
+                summary?.high24h, currency
               )}
         </div>
       </div>
@@ -263,7 +236,7 @@ export default function CommodityTopTiles({
           {unavailable
             ? "—"
             : formatPrice(
-                summary?.low24h
+                summary?.low24h, currency
               )}
         </div>
       </div>

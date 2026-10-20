@@ -312,3 +312,17 @@ export function CurrencyToggle({
     </div>
   );
 }
+/** The same global currency state, compact enough for the mobile top bar. */
+export function CurrencySelect({ className = "" }: { className?: string }) {
+  const { currency, setCurrency } = useCurrency();
+  return (
+    <select
+      value={currency}
+      onChange={(event) => setCurrency(event.target.value as Currency)}
+      className={`enterprise-currency-select ${className}`}
+      aria-label="Display currency"
+    >
+      {SUPPORTED_CURRENCIES.map((value) => <option key={value} value={value}>{value}</option>)}
+    </select>
+  );
+}
