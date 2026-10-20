@@ -9,6 +9,7 @@ import ThemeToggle from "@/components/theme/ThemeToggle";
 import {
   signInWithEmailAndPassword,
   signOut as firebaseSignOut,
+  sendPasswordResetEmail,
 } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 
@@ -17,12 +18,65 @@ export default function SignInPage() {
   const [password, setPassword] = useState("");
   const [showPw, setShowPw] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [resetMessage, setResetMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
 
   const router = useRouter();
   const search = useSearchParams();
 
   const expired = search.get("expired") === "1";
+
+  async function handleForgotPassword() {
+    const normalizedEmail = email.trim();
+
+    setError(null);
+    setResetMessage(null);
+
+    if (!normalizedEmail) {
+      setError(
+        "Enter your email address first, then select Forgot password."
+      );
+      return;
+    }
+
+    setResetLoading(true);
+
+    try {
+      await sendPasswordResetEmail(
+        auth,
+        normalizedEmail
+      );
+
+      setResetMessage(
+        "If an account exists for that email address, password reset instructions have been sent."
+      );
+    } catch (err: unknown) {
+      console.error(
+        "[AUTH] Password reset error:",
+        err
+      );
+
+      const code =
+        (err as { code?: string })?.code || "";
+
+      if (code === "auth/invalid-email") {
+        setError(
+          "Please enter a valid email address."
+        );
+      } else {
+        /*
+         * Keep the response generic so the UI does not reveal
+         * whether an email address is registered.
+         */
+        setResetMessage(
+          "If an account exists for that email address, password reset instructions have been sent."
+        );
+      }
+    } finally {
+      setResetLoading(false);
+    }
+  }
 
   async function onSubmit(
     e: React.FormEvent<HTMLFormElement>
@@ -30,6 +84,7 @@ export default function SignInPage() {
     e.preventDefault();
 
     setError(null);
+    setResetMessage(null);
     setLoading(true);
 
     try {
@@ -154,8 +209,21 @@ export default function SignInPage() {
           </div>
 
           {error && (
-            <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-800 ring-1 ring-red-200 dark:bg-red-900/30 dark:text-red-200 dark:ring-red-900">
+            <p
+              className="rounded-lg border px-3 py-2 text-sm font-medium"
+              style={{
+                backgroundColor: "var(--auth-error-bg)",
+                color: "var(--auth-error-foreground)",
+                borderColor: "var(--auth-error-border)",
+              }}
+            >
               {error}
+            </p>
+          )}
+
+          {resetMessage && !error && (
+            <p className="rounded-lg bg-green-50 px-3 py-2 text-sm text-green-800 ring-1 ring-green-200 dark:bg-green-900/30 dark:text-green-200 dark:ring-green-900">
+              {resetMessage}
             </p>
           )}
 
@@ -167,7 +235,7 @@ export default function SignInPage() {
 
           <Button
             type="submit"
-            disabled={loading}
+            disabled={loading || resetLoading}
             className="w-full rounded-xl py-2.5 text-sm border border-transparent dark:border-white overflow-visible"
           >
             {loading ? "Signing in…" : "Sign in"}
@@ -182,6 +250,20 @@ export default function SignInPage() {
           >
             Create one
           </Link>
+        </p>
+
+        <p className="mt-6 text-center text-sm text-[var(--muted-foreground)]">
+          Forgot Password?{" "}
+          <button
+            type="button"
+            onClick={handleForgotPassword}
+            disabled={resetLoading || loading}
+            className="text-sm font-medium text-[var(--primary)] underline hover:no-underline disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {resetLoading
+              ? "Sending reset email…"
+              : "Reset"}
+          </button>
         </p>
 
         <div className="mt-4 flex justify-center">
