@@ -251,15 +251,11 @@ export function AuthProvider({
           true;
 
         /*
-         * Stop all client-side timers immediately.
+         * Stop all client-side timers immediately and invalidate
+         * previously scheduled callbacks.
          */
         clearSessionTimers();
-
-        /*
-         * Invalidate all previously scheduled timer callbacks.
-         */
         sessionCycleRef.current++;
-
         setSessionWarning(false);
 
         const currentUser =
@@ -268,7 +264,7 @@ export function AuthProvider({
         try {
           // ====================================================
           // STEP 1
-          // REVOKE FIREBASE REFRESH TOKENS
+          // REVOKE FIREBASE REFRESH TOKENS USING FRESH ID TOKEN
           // ====================================================
 
           if (currentUser) {
@@ -276,12 +272,9 @@ export function AuthProvider({
               const idToken =
                 await currentUser.getIdToken();
 
-              const signoutUrl =
-                `${API_BASE_URL}/auth/signout`;
-
               const response =
                 await fetch(
-                  signoutUrl,
+                  `${API_BASE_URL}/auth/signout`,
                   {
                     method: "POST",
 
@@ -301,8 +294,8 @@ export function AuthProvider({
                 );
 
               /*
-               * A token that is already expired/revoked should
-               * not prevent local logout from completing.
+               * Revocation failure must never prevent local logout.
+               * The token may already be expired or revoked.
                */
               if (!response.ok) {
                 console.warn(
@@ -311,10 +304,6 @@ export function AuthProvider({
                 );
               }
             } catch (error) {
-              /*
-               * Local logout must still happen if the backend
-               * is unavailable.
-               */
               console.error(
                 "[AUTH] Backend signout failed:",
                 error
@@ -322,12 +311,19 @@ export function AuthProvider({
             }
           }
 
-
           // ====================================================
           // STEP 2
-          // DELETE NEXT.JS SESSION COOKIE
+          // CLEAR NEXT.JS SESSION COOKIES
           // ====================================================
 
+          /*
+           * Keep this call even though the Next.js route currently
+           * also attempts backend signout. Its required purpose here
+           * is clearing the HttpOnly session cookies.
+           *
+           * We intentionally preserve the direct backend call above
+           * because it uses the freshest Firebase ID token.
+           */
           try {
             const response =
               await fetch(
@@ -354,7 +350,6 @@ export function AuthProvider({
               error
             );
           }
-
 
           // ====================================================
           // STEP 3

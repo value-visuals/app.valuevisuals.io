@@ -1,6 +1,5 @@
-// src/lib/market/loadMarketData.ts
-
 import type {
+  CoinStats,
   CryptoSummary,
   MetalsSummary,
   MarketCurrency,
@@ -52,6 +51,26 @@ export type LoadResult = {
     string,
     CryptoChart
   >;
+
+  /*
+   * Individual crypto stats.
+   *
+   * These use the same existing endpoints
+   * used by the individual crypto pages
+   * and CryptoTopTiles.
+   *
+   * CoinStats includes:
+   *
+   *   priceUsd
+   *   change24hPct
+   *   change24h
+   *   marketCapUsd
+   *   volume24hUsd
+   *   dominancePct
+   */
+  bitcoinStats: CoinStats;
+  ethereumStats: CoinStats;
+  moneroStats: CoinStats;
 };
 
 // -----------------------------------------------------------------------------
@@ -62,6 +81,11 @@ const CRYPTO_SYMBOLS = [
   "BTC",
   "ETH",
   "XMR",
+] as const;
+
+const METAL_BASES = [
+  "gold",
+  "silver",
 ] as const;
 
 const DEFAULT_CHART_DAYS = 30;
@@ -109,6 +133,92 @@ async function fetchJson<T>(
   }
 
   return response.json();
+}
+
+// -----------------------------------------------------------------------------
+// Crypto stats loader
+// -----------------------------------------------------------------------------
+
+async function fetchCryptoStats(
+  asset:
+    | "bitcoin"
+    | "ethereum"
+    | "monero",
+  currency: MarketCurrency
+): Promise<CoinStats> {
+  /*
+   * These are the EXISTING endpoints
+   * already used by marketStore.ts.
+   *
+   * Do not use:
+   *
+   *   /api/crypto/btc
+   *   /api/crypto/eth
+   *   /api/crypto/xmr
+   */
+  const params =
+    new URLSearchParams();
+
+  params.set(
+    "currency",
+    currency
+  );
+
+  const url =
+    `/api/crypto/${asset}?${params.toString()}`;
+
+  return fetchJson<CoinStats>(
+    url
+  );
+}
+
+// -----------------------------------------------------------------------------
+// Load all crypto stats
+// -----------------------------------------------------------------------------
+
+async function fetchAllCryptoStats(
+  currency: MarketCurrency
+): Promise<{
+  bitcoinStats: CoinStats;
+  ethereumStats: CoinStats;
+  moneroStats: CoinStats;
+}> {
+  /*
+   * Load the same individual stats
+   * that become available when visiting
+   * /bitcoin, /ethereum and /monero.
+   *
+   * This makes dominance available on
+   * the initial dashboard load instead
+   * of requiring the user to visit each
+   * asset page first.
+   */
+  const [
+    bitcoinStats,
+    ethereumStats,
+    moneroStats,
+  ] = await Promise.all([
+    fetchCryptoStats(
+      "bitcoin",
+      currency
+    ),
+
+    fetchCryptoStats(
+      "ethereum",
+      currency
+    ),
+
+    fetchCryptoStats(
+      "monero",
+      currency
+    ),
+  ]);
+
+  return {
+    bitcoinStats,
+    ethereumStats,
+    moneroStats,
+  };
 }
 
 // -----------------------------------------------------------------------------
@@ -202,6 +312,80 @@ async function fetchCryptoCharts(
 }
 
 // -----------------------------------------------------------------------------
+// Load metals
+// -----------------------------------------------------------------------------
+
+async function fetchMetalsSummary(
+  currency: MarketCurrency
+): Promise<MetalsSummary> {
+  /*
+   * /api/metals/summary accepts a
+   * single base at a time.
+   *
+   * Therefore we explicitly request
+   * both Gold (XAU) and Silver (XAG)
+   * and combine their items.
+   *
+   * This is important because omitting
+   * `base` causes the API route to
+   * default to XAU.
+   */
+  const results =
+    await Promise.all(
+      METAL_BASES.map(
+        async (metal) => {
+          const params =
+            new URLSearchParams();
+
+          params.set(
+            "base",
+            metal
+          );
+
+          params.set(
+            "currency",
+            currency
+          );
+
+          const url =
+            `/api/metals/summary?${params.toString()}`;
+
+          return fetchJson<MetalsSummary>(
+            url
+          );
+        }
+      )
+    );
+
+  /*
+   * Preserve the MetalsSummary shape
+   * already consumed throughout the app.
+   *
+   * The important part for MarketList
+   * is that `items` now contains both
+   * the XAU and XAG entries.
+   */
+  const items =
+    results.flatMap(
+      (result) =>
+        Array.isArray(result?.items)
+          ? result.items
+          : []
+    );
+
+  /*
+   * Preserve any additional metadata
+   * from the first response while
+   * replacing items with the combined
+   * Gold + Silver collection.
+   */
+  return {
+    ...(results[0] ?? {}),
+    items,
+  };
+}
+
+// -----------------------------------------------------------------------------
 // Load market data
 // -----------------------------------------------------------------------------
 
@@ -214,35 +398,50 @@ export async function loadMarketData(
     );
 
   // ---------------------------------------------------------------------------
-  // Summary endpoints
+  // Summary endpoint
   // ---------------------------------------------------------------------------
 
   const cryptoUrl =
     `/api/crypto/summary?currency=${currencyParam}`;
 
-  const metalsUrl =
-    `/api/metals/summary?base=gold&currency=${currencyParam}`;
+  /*
+   * Metals are loaded through
+   * fetchMetalsSummary() because the
+   * API requires one base per request.
+   *
+   * Do not use:
+   *
+   *   /api/metals/summary?currency=...
+   *
+   * by itself because that endpoint
+   * defaults to XAU.
+   */
 
   // ---------------------------------------------------------------------------
-  // Load summaries and charts
+  // Load summaries, individual crypto stats and charts
   // ---------------------------------------------------------------------------
 
   const [
     cryptoSummary,
     metalsSummary,
     cryptoCharts,
+    cryptoStats,
   ] = await Promise.all([
     fetchJson<CryptoSummary>(
       cryptoUrl
     ),
 
-    fetchJson<MetalsSummary>(
-      metalsUrl
+    fetchMetalsSummary(
+      currency
     ),
 
     fetchCryptoCharts(
       currency,
       DEFAULT_CHART_DAYS
+    ),
+
+    fetchAllCryptoStats(
+      currency
     ),
   ]);
 
@@ -254,5 +453,14 @@ export async function loadMarketData(
     cryptoSummary,
     metalsSummary,
     cryptoCharts,
+
+    bitcoinStats:
+      cryptoStats.bitcoinStats,
+
+    ethereumStats:
+      cryptoStats.ethereumStats,
+
+    moneroStats:
+      cryptoStats.moneroStats,
   };
 }

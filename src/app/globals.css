@@ -28,6 +28,11 @@
   --destructive: #ef4444;
   --destructive-foreground: #ffffff;
 
+  /* Auth error alert */
+  --auth-error-bg: #ef4444;
+  --auth-error-foreground: #ffffff;
+  --auth-error-border: #dc2626;
+
   /* legacy aliases */
   --navbar-bg:  #ffffff;
   --sidebar-bg: #f8f9fa;
@@ -62,6 +67,11 @@
 
   --destructive: #ef4444;
   --destructive-foreground: #ffffff;
+
+  /* Preserve the existing dark-mode auth error appearance */
+  --auth-error-bg: rgba(127, 29, 29, 0.30);
+  --auth-error-foreground: #fecaca;
+  --auth-error-border: #7f1d1d;
 
   --navbar-bg:  #000000;
   --sidebar-bg: #000000;
