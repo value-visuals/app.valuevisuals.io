@@ -18,7 +18,7 @@ function evaluate(relativePath, mocks, extras = {}) {
 function userFixture(fetchStatuses, onReady = () => {}) {
   const calls = [];
   const tokenRefreshes = [];
-  const redirects = [];
+  const events = [];
   let logouts = 0;
   const user = { uid: 'current-uid', async getIdToken(force) { tokenRefreshes.push(Boolean(force)); return force ? 'fresh.jwt.id' : 'cached.jwt.id'; } };
   const auth = { currentUser: null, async authStateReady() { onReady(auth, user); } };
@@ -31,8 +31,8 @@ function userFixture(fetchStatuses, onReady = () => {}) {
     'firebase/auth': { async signOut() { logouts++; auth.currentUser = null; } },
     '@/lib/firebase': { auth },
     '@/lib/clientApiUrl': { clientApiUrl: p => p },
-  }, { fetch: mockedFetch, window: { location: { pathname: '/dashboard', replace: u => redirects.push(u) } } });
-  return { auth, user, calls, tokenRefreshes, redirects, get logouts() { return logouts; }, authenticatedFetch };
+  }, { fetch: mockedFetch, Event, window: { dispatchEvent: event => events.push(event.type) } });
+  return { auth, user, calls, tokenRefreshes, events, get logouts() { return logouts; }, authenticatedFetch };
 }
 async function run() {
   let test = userFixture([200], (auth, user) => { auth.currentUser = user; });
@@ -53,7 +53,7 @@ async function run() {
   test = userFixture([401, 401], (auth, user) => { auth.currentUser = user; });
   assert.equal((await test.authenticatedFetch('/api/me')).status, 401);
   assert.equal(test.logouts, 1);
-  assert.equal(test.redirects[0], '/signin?expired=1');
+  assert.equal(test.events[0], 'valuevisuals:auth-required');
 
   test = userFixture([200]);
   await assert.rejects(test.authenticatedFetch('/api/me'), /AUTH_REQUIRED/);
@@ -65,6 +65,6 @@ async function run() {
   const native = evaluate('lib/clientApiUrl.ts', {}, { process: { env: { NEXT_PUBLIC_MOBILE_STATIC_EXPORT: 'true', NEXT_PUBLIC_API_PROXY_ORIGIN: 'https://app.valuevisuals.io' } } });
   assert.equal(native.clientApiUrl('/api/me'), 'https://app.valuevisuals.io/api/me');
 
-  console.log('PASS: Firebase initialization, bearer tokens, forced refresh, sign-out, protected route guard and web/native proxy origins');
+  console.log('PASS: Firebase initialization, bearer tokens, forced refresh, sign-out, session-expiry dialog event and web/native proxy origins');
 }
 run().catch(err => { console.error(err); process.exitCode = 1; });

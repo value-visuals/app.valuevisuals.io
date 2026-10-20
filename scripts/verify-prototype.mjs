@@ -45,6 +45,19 @@ if (readFileSync(join(src, "app/(auth)/signup/page.tsx"), "utf8").includes("/api
   errors.push("Sign-up still calls backend auth");
 }
 
+// The modal provider must wrap both navigation and page content. Without it,
+// `useAuthModal()` throws in the browser on every page despite a successful build.
+const layout = readFileSync(join(src, "app/layout.tsx"), "utf8");
+const providerStart = layout.indexOf("<AuthModalProvider>");
+const providerEnd = layout.indexOf("</AuthModalProvider>");
+const nav = layout.indexOf("<AppNavigation />");
+const child = layout.indexOf("{children}");
+if (providerStart < 0 || providerEnd < providerStart ||
+    nav < providerStart || nav > providerEnd ||
+    child < providerStart || child > providerEnd) {
+  errors.push("AuthModalProvider must wrap AppNavigation and children in root layout");
+}
+
 // Navigation regressions: keep bottom tabs while moving currency into the menu.
 const navigation = readFileSync(join(src, "components/AppNavigation.tsx"), "utf8");
 const css = readFileSync(join(src, "app/globals.css"), "utf8");
