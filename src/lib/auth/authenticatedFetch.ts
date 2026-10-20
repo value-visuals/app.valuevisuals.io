@@ -46,8 +46,8 @@ export async function authenticatedFetch(url: string, options: RequestInit = {})
 
   if (auth.currentUser?.uid === user.uid) {
     await signOut(auth).catch(() => {});
-    if (typeof window !== "undefined" && window.location.pathname !== "/signin") {
-      window.location.replace("/signin?expired=1");
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new Event("valuevisuals:auth-required"));
     }
   }
   return retry ?? initial;

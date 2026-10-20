@@ -41,8 +41,6 @@ export type LoadResult = {
   moneroStats: CoinStats;
 };
 
-const METAL_BASES = ["gold", "silver"] as const;
-
 type CryptoAsset = "bitcoin" | "ethereum" | "monero";
 
 async function fetchJson<T>(url: string): Promise<T> {
@@ -127,26 +125,14 @@ function statsFromSummary(
   };
 }
 
-export async function fetchMetalsSummary(
-  currency: MarketCurrency
-): Promise<MetalsSummary> {
-  const results = await Promise.allSettled(
-    METAL_BASES.map((base) => {
-      const query = new URLSearchParams({ base, currency });
-      return fetchJson<MetalsSummary>(`/api/metals/summary?${query}`);
-    })
-  );
-  const successes = results.filter(
-    (entry): entry is PromiseFulfilledResult<MetalsSummary> => entry.status === "fulfilled"
-  ).map(entry => entry.value);
-  if (successes.length === 0) {
-    const cause = results.find(entry => entry.status === "rejected");
-    throw cause?.status === "rejected" ? cause.reason : new Error("Metal quotes unavailable");
-  }
-  return {
-    ...(successes[0] ?? {}),
-    items: successes.flatMap(result => Array.isArray(result?.items) ? result.items : []),
-  };
+/** The backend returns both XAU and XAG when `base` is omitted.
+ * One network request replaces two duplicate conversions / Firestore lookups.
+ */
+export async function fetchMetalsSummary(currency: MarketCurrency): Promise<MetalsSummary> {
+  const query = new URLSearchParams({ currency });
+  const response = await fetchJson<MetalsSummary>(`/api/metals/summary?${query}`);
+  if (!Array.isArray(response?.items)) throw new Error("Invalid metals market response");
+  return response;
 }
 
 

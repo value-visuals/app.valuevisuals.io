@@ -26,15 +26,24 @@ export default function MarketProvider({ children }: { children: ReactNode }) {
   const setCryptoError = useMarketStore(s => s.setCryptoError);
   const setMetalsError = useMarketStore(s => s.setMetalsError);
   const requestRef = useRef(0);
-  const currencyRef = useRef<MarketCurrency | null>(null);
-  const userRef = useRef<string | null>(null);
+  // Zustand survives route navigation. Preserve same-user, same-currency quotes.
+  const currencyRef = useRef<MarketCurrency>(currency);
+  const userRef = useRef<string | null>(userId);
 
-  const load = useCallback(async (requested: MarketCurrency) => {
+  const load = useCallback(async (requested: MarketCurrency, force = false) => {
     const request = ++requestRef.current;
     const switchedCurrency = currencyRef.current !== requested;
     const switchedUser = userRef.current !== userId;
     currencyRef.current = requested;
     userRef.current = userId;
+    const existing = useMarketStore.getState();
+    // Avoid clearing and refetching a recent snapshot when navigating back to Analysis.
+    if (!force && !switchedCurrency && !switchedUser &&
+        existing.cryptoSummary && existing.metalsSummary &&
+        existing.lastCryptoUpdate && existing.lastMetalsUpdate &&
+        Date.now() - Math.min(existing.lastCryptoUpdate, existing.lastMetalsUpdate) < 30_000) {
+      return;
+    }
     if (switchedCurrency || switchedUser) {
       // Do not display a USD quote under a newly chosen EUR/GBP label.
       setCryptoSummary(null);
@@ -78,8 +87,15 @@ export default function MarketProvider({ children }: { children: ReactNode }) {
     const refreshVisible = () => {
       if (document.visibilityState === "visible") void load(currency);
     };
+    const forceRefresh = () => { void load(currency, true); };
     document.addEventListener("visibilitychange", refreshVisible);
-    return () => { window.clearInterval(timer); document.removeEventListener("visibilitychange", refreshVisible); requestRef.current++; };
+    document.addEventListener("valuevisuals:refresh-markets", forceRefresh);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", refreshVisible);
+      document.removeEventListener("valuevisuals:refresh-markets", forceRefresh);
+      requestRef.current++;
+    };
   }, [currency, userId, load]);
 
   return <>{children}</>;

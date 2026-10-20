@@ -512,7 +512,9 @@ export default function CryptoComparisonChart({
         }),
       {
         refreshInterval: 60_000,
+        dedupingInterval: 40_000,
         revalidateOnFocus: false,
+        keepPreviousData: true,
       }
     );
 

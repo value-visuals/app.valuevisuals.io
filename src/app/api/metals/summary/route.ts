@@ -33,11 +33,13 @@ function authHeaders(req: NextRequest) {
 export async function GET(req: NextRequest) {
   try {
     const params = new URL(req.url).searchParams;
-    const b = base(params.get("base") || params.get("metal"));
+    const requestedBase = params.get("base") || params.get("metal");
     const c = currency(params.get("currency"));
 
     const url = new URL(`${getApiUrl()}/api/metals/summary`);
-    url.searchParams.set("base", b);
+    // Omit base for the dashboard-wide summary so the API returns both XAU and XAG.
+    // Keep explicit base/metal requests compatible with individual asset pages.
+    if (requestedBase) url.searchParams.set("base", base(requestedBase));
     url.searchParams.set("currency", c);
 
     const headers = authHeaders(req);

@@ -17,6 +17,7 @@ import {
   X,
 } from "lucide-react";
 import { useAuth } from "@/components/auth/AuthProvider";
+import { useAuthModal } from "@/components/auth/AuthModal";
 import { CurrencyToggle } from "@/components/Currency";
 import ThemeToggle from "@/components/theme/ThemeToggle";
 
@@ -31,6 +32,7 @@ const assetLinks = [
 export default function AppNavigation() {
   const pathname = usePathname();
   const { user, loading, logout } = useAuth();
+  const { openAuth } = useAuthModal();
   const [open, setOpen] = useState(false);
   const headerRef = useRef<HTMLElement>(null);
 
@@ -91,12 +93,16 @@ export default function AppNavigation() {
 
         <nav aria-label="Site pages">
           <span className="enterprise-menu-label">Explore</span>
-          <Link href="/" className="enterprise-menu-link" onClick={closeMenu}><Compass size={17}/> Markets</Link>
-          {user && <>
-            <Link href="/dashboard" className="enterprise-menu-link" onClick={closeMenu}><LayoutDashboard size={17}/> My analysis</Link>
-            <Link href="/dashboard/portfolio" className="enterprise-menu-link" onClick={closeMenu}><ChartCandlestick size={17}/> Portfolio</Link>
-            <Link href="/dashboard/wallets" className="enterprise-menu-link" onClick={closeMenu}><Wallet size={17}/> Wallets</Link>
-          </>}
+          <Link href="/" className="enterprise-menu-link" aria-current={isMarkets ? "page" : undefined} onClick={closeMenu}><Compass size={17}/> Markets</Link>
+          {user ? <>
+            <Link href="/dashboard" className="enterprise-menu-link" aria-current={isAnalysis ? "page" : undefined} onClick={closeMenu}><LayoutDashboard size={17}/> My analysis</Link>
+            <Link href="/dashboard/portfolio" className="enterprise-menu-link" aria-current={pathname.startsWith("/dashboard/portfolio") ? "page" : undefined} onClick={closeMenu}><ChartCandlestick size={17}/> Portfolio</Link>
+            <Link href="/dashboard/wallets" className="enterprise-menu-link" aria-current={pathname.startsWith("/dashboard/wallets") ? "page" : undefined} onClick={closeMenu}><Wallet size={17}/> Wallets</Link>
+          </> : !loading ? <>
+            <button type="button" className="enterprise-menu-link" onClick={() => { closeMenu(); openAuth("signin", { next: "/dashboard" }); }}><LayoutDashboard size={17}/> My analysis</button>
+            <button type="button" className="enterprise-menu-link" onClick={() => { closeMenu(); openAuth("signin", { next: "/dashboard/portfolio" }); }}><ChartCandlestick size={17}/> Portfolio</button>
+            <button type="button" className="enterprise-menu-link" onClick={() => { closeMenu(); openAuth("signin", { next: "/dashboard/wallets" }); }}><Wallet size={17}/> Wallets</button>
+          </> : null}
           <span className="enterprise-menu-label enterprise-menu-divider">Tracked assets</span>
           <div className="enterprise-menu-assets">
             {assetLinks.map(asset => <Link
@@ -118,8 +124,8 @@ export default function AppNavigation() {
             <Link href="/dashboard/settings" className="enterprise-menu-link" onClick={closeMenu}><Settings2 size={17}/> Settings</Link>
             <button type="button" className="enterprise-menu-link enterprise-logout" onClick={() => { closeMenu(); void logout(false); }}><LogOut size={17}/> Sign out</button>
           </> : !loading ? <>
-            <Link href="/signin" className="enterprise-menu-link" onClick={closeMenu}>Sign in</Link>
-            <Link href="/signup" className="enterprise-menu-link enterprise-menu-signup" onClick={closeMenu}>Create account <ArrowRight size={15}/></Link>
+            <button type="button" className="enterprise-menu-link" onClick={() => { closeMenu(); openAuth("signin"); }}>Sign in</button>
+            <button type="button" className="enterprise-menu-link enterprise-menu-signup" onClick={() => { closeMenu(); openAuth("signup"); }}>Create account <ArrowRight size={15}/></button>
           </> : null}
         </div>
       </div>}

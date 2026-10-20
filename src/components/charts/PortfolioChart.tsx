@@ -166,7 +166,10 @@ export default function PortfolioChart({ className = "" }: { className?: string 
             />
 
             <Tooltip
-                formatter={(v: number) => formatBTC(v)}
+                formatter={(value) => {
+                    const amount = Number(value);
+                    return Number.isFinite(amount) ? formatBTC(amount) : "—";
+                }}
                 labelFormatter={(_, payloadArg: unknown) => {
                     const payload = payloadArg as ReadonlyArray<any>;
                     const ts = payload?.[0]?.payload?.t as number | undefined; // ms

@@ -2,6 +2,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { AuthProvider } from "@/components/auth/AuthProvider";
+import { AuthModalProvider } from "@/components/auth/AuthModal";
 import { ThemeProvider } from "@/components/theme/ThemeProvider";
 import { CurrencyProvider } from "@/components/Currency";
 import AppNavigation from "@/components/AppNavigation";
@@ -27,7 +28,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" suppressHydrationWarning>
       <body className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
         <ThemeProvider>
-          <AuthProvider><CurrencyProvider><AppNavigation />{children}</CurrencyProvider></AuthProvider>
+          <AuthProvider>
+            <AuthModalProvider>
+              <CurrencyProvider>
+                <AppNavigation />
+                {children}
+              </CurrencyProvider>
+            </AuthModalProvider>
+          </AuthProvider>
         </ThemeProvider>
       </body>
     </html>

@@ -35,7 +35,7 @@ export default function Sparkline({
     revalidateOnFocus: false,
     shouldRetryOnError: false,
   });
-  const history = data?.asset === asset && data.currency === currency
+  const history = data && data.asset === asset && data.currency === currency
     ? data.points.map(point => point.price).filter(value => Number.isFinite(value) && value > 0)
     : [];
   const readings = values.length ? values : history;

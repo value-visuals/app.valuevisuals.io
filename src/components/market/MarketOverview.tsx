@@ -6,6 +6,7 @@ import useSWR from "swr";
 import { ArrowDownRight, ArrowRight, ArrowUpRight, CircleHelp, ExternalLink, RefreshCw, Search } from "lucide-react";
 import { useCurrency } from "@/components/Currency";
 import { useAuth } from "@/components/auth/AuthProvider";
+import { useAuthModal } from "@/components/auth/AuthModal";
 import { clientApiUrl } from "@/lib/clientApiUrl";
 import { formatMoney, formatChange } from "@/lib/market/format";
 import { ASSETS, type MarketAsset, type MarketAssetId, type PublicMarkets } from "@/lib/market/publicMarketTypes";
@@ -30,13 +31,14 @@ function Change({ value }: { value: number | null }) {
 export default function MarketOverview() {
   const { currency } = useCurrency();
   const { user } = useAuth();
+  const { openAuth } = useAuthModal();
   const [selectedId, setSelectedId] = useState<MarketAssetId>("bitcoin");
   const [category, setCategory] = useState<Category>("All assets");
   const [query, setQuery] = useState("");
   const { data, error, isLoading, isValidating, mutate } = useSWR(`/api/public/markets?currency=${currency}`, getMarkets, {
     refreshInterval: 60_000, revalidateOnFocus: true, keepPreviousData: false, dedupingInterval: 40_000,
   });
-  const assets = data?.currency === currency ? data.assets : fallback;
+  const assets = data && data.currency === currency ? data.assets : fallback;
   const selected = assets.find(asset => asset.id === selectedId) ?? assets[0];
   const filtered = useMemo(() => assets.filter(asset => (category === "All assets" || category === asset.category) && `${asset.name} ${asset.symbol}`.toLowerCase().includes(query.trim().toLowerCase())), [assets, category, query]);
   const lastUpdated = data?.updatedAt ? new Date(data.updatedAt).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }) : "—";
@@ -89,11 +91,11 @@ export default function MarketOverview() {
         <MarketPriceChart asset={selected.id} currency={currency}/>
         <div className="detail-grid"><div><span>Market cap</span><strong>{formatMoney(selected.marketCap, currency, true)}</strong></div><div><span>24h volume</span><strong>{formatMoney(selected.volume24h, currency, true)}</strong></div><div><span>7d change</span><strong>{formatChange(selected.change7d)}</strong></div><div><span>Primary source</span><strong>{selected.source}</strong></div></div>
         {user && <Link className="detail-analysis-link" href={`/dashboard/${selected.id}`}>Full {selected.name} analysis <ExternalLink size={15}/></Link>}
-        {!user && <p className="detail-guest-note">Want historical portfolio data and detailed analysis? <Link href="/signup">Create your workspace <ArrowRight size={13}/></Link></p>}
+        {!user && <p className="detail-guest-note">Want historical portfolio data and detailed analysis? <button type="button" className="vv-inline-auth" onClick={() => openAuth("signup")}>Create your workspace <ArrowRight size={13}/></button></p>}
       </aside>
     </div>
     <div className="enterprise-disclaimer"><CircleHelp size={16}/><span>Public quotes are indicative. Gold and silver prices are per troy ounce. Metals have no market cap value in this feed. Global Fear & Greed is not calculated from Value Visuals assets.</span></div>
-    {!user && <section className="enterprise-join"><div><span className="enterprise-section-eyebrow">BEYOND THE PRICE</span><h2>Make your market data personal.</h2><p>Your portfolio, wallet tracking, chart comparisons and account preferences are one sign-in away.</p></div><Link href="/signup" className="enterprise-join-button">Create an account <ArrowRight size={17}/></Link></section>}
+    {!user && <section className="enterprise-join"><div><span className="enterprise-section-eyebrow">BEYOND THE PRICE</span><h2>Make your market data personal.</h2><p>Your portfolio, wallet tracking, chart comparisons and account preferences are one sign-in away.</p></div><button type="button" className="enterprise-join-button" onClick={() => openAuth("signup")}>Create an account <ArrowRight size={17}/></button></section>}
     <footer className="enterprise-footer"><span>© {new Date().getFullYear()} Value Visuals</span><span>Independent market intelligence · Not financial advice</span></footer>
   </main>;
 }

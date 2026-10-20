@@ -25,7 +25,7 @@ function CapTile({ currency, assets }: { currency: MarketQuoteCurrency; assets: 
   });
   const coins = assets.filter(a => a.category === "Crypto");
   const current = coins.length === 3 && coins.every(a => a.marketCap != null) ? coins.reduce((sum, a) => sum + a.marketCap!, 0) : null;
-  const points = data?.currency === currency && data.days === days ? data.points : [];
+  const points = data && data.currency === currency && data.days === days ? data.points : [];
   const first = points[0]?.value;
   const last = points[points.length - 1]?.value;
   const pct = first && last ? (last - first) / first * 100 : null;

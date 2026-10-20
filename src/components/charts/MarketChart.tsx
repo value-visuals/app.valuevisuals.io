@@ -1,5 +1,5 @@
 "use client";
-import { authenticatedFetch } from "@/lib/auth/authenticatedFetch";
+import { clientApiUrl } from "@/lib/clientApiUrl";
 
 import React from "react";
 import useSWR from "swr";
@@ -360,7 +360,7 @@ async function fetchChart(
   url: string
 ): Promise<ChartResponse> {
   const response =
-    await authenticatedFetch(url, {
+    await fetch(clientApiUrl(url), {
       method: "GET",
       cache: "no-store",
       
@@ -535,73 +535,12 @@ export default function MarketChart({
         asset as MetalAsset
       ];
 
-  /* =======================================================
-   * API URL
-   *
-   * ALWAYS 7D.
-   * ===================================================== */
-
-  const url =
-    React.useMemo(() => {
-      if (isCrypto) {
-        const coin =
-          asset as CryptoAsset;
-
-        return (
-          `/api/crypto/chart` +
-          `?symbol=${encodeURIComponent(
-            meta.symbol
-          )}` +
-          `&range=7d` +
-          `&interval=auto` +
-          `&currency=${encodeURIComponent(
-            normalizedCurrency
-          )}` +
-          `&coin=${encodeURIComponent(
-            coin
-          )}` +
-          `&days=7`
-        );
-      }
-
-      const metal =
-        asset as MetalAsset;
-
-      /*
-       * MetalsChart currently uses USD,
-       * EUR, or GBP for metals.
-       */
-      const metalCurrency =
-        [
-          "USD",
-          "EUR",
-          "GBP",
-        ].includes(
-          normalizedCurrency
-        )
-          ? normalizedCurrency
-          : "USD";
-
-      return (
-        `/api/metals/chart` +
-        `?metal=${encodeURIComponent(
-          metal
-        )}` +
-        `&symbol=${encodeURIComponent(
-          `${meta.symbol}/${metalCurrency}`
-        )}` +
-        `&range=7d` +
-        `&days=7` +
-        `&currency=${encodeURIComponent(
-          metalCurrency
-        )}`
-      );
-    }, [
-      asset,
-      isCrypto,
-      meta.symbol,
-      normalizedCurrency,
-    ]);
+  // Reuse the public, CDN-cacheable historical endpoint already proven on
+  // the homepage. Five sparklines no longer require five Firebase token calls.
+  const url = React.useMemo(() => {
+    const query = new URLSearchParams({ asset, days: "7", currency: normalizedCurrency });
+    return `/api/public/chart?${query}`;
+  }, [asset, normalizedCurrency]);
 
   /* =======================================================
    * Data
@@ -622,8 +561,9 @@ export default function MarketChart({
         revalidateOnFocus:
           false,
 
+        // The selected currency must never display the previous currency's trend.
         keepPreviousData:
-          true,
+          false,
       }
     );
 
