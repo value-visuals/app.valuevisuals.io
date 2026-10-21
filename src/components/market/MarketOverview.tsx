@@ -1,5 +1,7 @@
 "use client";
 
+import type { MarketCapRankingResponse } from "@/lib/market/assetMarketCapTypes";
+
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import useSWR from "swr";
@@ -21,6 +23,11 @@ async function getMarkets(url: string): Promise<PublicMarkets> {
   return response.json();
 }
 const fallback = ASSETS.map(asset => ({ ...asset, price: null, change24h: null, change7d: null, marketCap: null, volume24h: null, sparkline: [], source: "Awaiting quotes" } satisfies MarketAsset));
+async function getMarketCaps(url: string): Promise<MarketCapRankingResponse> {
+  const response = await fetch(clientApiUrl(url), { cache: "no-store" });
+  if (!response.ok) throw new Error("Ranking data unavailable");
+  return response.json();
+}
 type Category = "All assets" | "Crypto" | "Metals";
 
 function Change({ value }: { value: number | null }) {
@@ -41,7 +48,15 @@ export default function MarketOverview() {
   const { data, error, isLoading, isValidating, mutate } = useSWR(`/api/public/markets?currency=${currency}`, getMarkets, {
     refreshInterval: 60_000, revalidateOnFocus: true, keepPreviousData: false, dedupingInterval: 40_000,
   });
-  const assets = data && data.currency === currency ? data.assets : fallback;
+  const { data: caps } = useSWR(`/api/public/market-caps?currency=${currency}&limit=100`, getMarketCaps, {
+    refreshInterval: 15 * 60 * 1000, revalidateOnFocus: false, dedupingInterval: 60_000,
+  });
+  const metalCaps = caps?.currency === currency ? caps.data : [];
+  const assets = (data && data.currency === currency ? data.assets : fallback).map(asset => {
+    if (asset.category !== "Metals") return asset;
+    const cap = metalCaps.find(row => row.trackedAsset === asset.id);
+    return { ...asset, marketCap: cap?.marketCap ?? null };
+  });
   const selected = assets.find(asset => asset.id === selectedId) ?? assets[0];
   const performanceMatches = chartPerformance?.asset === selected.id && chartPerformance.currency === currency && chartPerformance.days === chartDays;
   const selectedChange = performanceMatches ? chartPerformance.change : null;
@@ -69,7 +84,7 @@ export default function MarketOverview() {
         <h1 className="sr-only">Market overview</h1>
         <div className="enterprise-breadcrumb">MARKETS <span>/</span> OVERVIEW <span className="live-chip"><span className="live-orb"/> LIVE</span></div>
       </div>
-      <div className="enterprise-market-heading-actions"><button type="button" className="enterprise-refresh" aria-label="Refresh market quotes" title="Refresh quotes" onClick={() => void mutate()} disabled={isValidating}><RefreshCw size={16} className={isValidating ? "animate-spin" : ""}/></button></div>
+      <div className="enterprise-market-heading-actions"><Link href="/market-caps" className="inline-flex min-h-[37px] items-center gap-1.5 rounded-lg border border-border bg-card px-3 text-xs font-semibold hover:bg-muted">Top 100 assets <ArrowRight size={13}/></Link><button type="button" className="enterprise-refresh" aria-label="Refresh market quotes" title="Refresh quotes" onClick={() => void mutate()} disabled={isValidating}><RefreshCw size={16} className={isValidating ? "animate-spin" : ""}/></button></div>
     </div>
 
     <div className="enterprise-meta-row"><span><span className="live-orb"/> {available} of 5 asset feeds available</span><i/><span>{isLoading ? "Loading market data" : isValidating ? "Updating quotes…" : `Updated ${lastUpdated}`}</span><i/><span>{data?.stale ? "Using last known public quotes" : "Public market reference"}</span></div>
@@ -100,7 +115,7 @@ export default function MarketOverview() {
         {!user && <p className="detail-guest-note">Want historical portfolio data and detailed analysis? <button type="button" className="vv-inline-auth" onClick={() => openAuth("signup")}>Create your workspace <ArrowRight size={13}/></button></p>}
       </aside>
     </div>
-    <div className="enterprise-disclaimer"><CircleHelp size={16}/><span>Public quotes are indicative. Gold and silver prices are per troy ounce. Metals have no market cap value in this feed. Global Fear & Greed is not calculated from Value Visuals assets.</span></div>
+    <div className="enterprise-disclaimer"><CircleHelp size={16}/><span>Public quotes are indicative. Gold and silver spot prices are per troy ounce. Precious-metal market caps, when available, are estimated above-ground valuations from AssetMarketCap. Global Fear & Greed is not calculated from Value Visuals assets.</span></div>
     {!user && <section className="enterprise-join"><div><span className="enterprise-section-eyebrow">BEYOND THE PRICE</span><h2>Make your market data personal.</h2><p>Your portfolio, wallet tracking, chart comparisons and account preferences are one sign-in away.</p></div><button type="button" className="enterprise-join-button" onClick={() => openAuth("signup")}>Create an account <ArrowRight size={17}/></button></section>}
     <footer className="enterprise-footer"><span>© {new Date().getFullYear()} Value Visuals</span><span>Independent market intelligence · Not financial advice</span></footer>
   </main>;

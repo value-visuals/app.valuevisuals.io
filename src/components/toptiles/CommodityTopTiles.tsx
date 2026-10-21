@@ -1,6 +1,9 @@
 "use client";
 
 import { useEffect } from "react";
+import useSWR from "swr";
+import { clientApiUrl } from "@/lib/clientApiUrl";
+import type { MarketCapRankingResponse } from "@/lib/market/assetMarketCapTypes";
 import { useCurrency } from "@/components/Currency";
 import {
   ArrowUpRight,
@@ -38,6 +41,19 @@ const assetConfig: Record<
 function formatPrice(value: number | null | undefined, currency: string) {
   if (value == null || !Number.isFinite(value)) return "—";
   return new Intl.NumberFormat("en-US", { style: "currency", currency, maximumFractionDigits: value >= 1 ? 2 : 4 }).format(value);
+}
+
+function formatMarketCap(value: number | null | undefined, currency: string): string {
+  if (value == null || !Number.isFinite(value)) return "—";
+  return new Intl.NumberFormat("en-US", {
+    style: "currency", currency, notation: "compact", maximumFractionDigits: 2,
+  }).format(value);
+}
+
+async function getMarketCaps(url: string): Promise<MarketCapRankingResponse> {
+  const response = await fetch(clientApiUrl(url), { cache: "no-store" });
+  if (!response.ok) throw new Error("Market-cap feed unavailable");
+  return response.json();
 }
 
 function getChangeFraction(
@@ -115,6 +131,17 @@ export default function CommodityTopTiles({
 }: CommodityTopTilesProps) {
   const config = assetConfig[asset];
   const { currency } = useCurrency();
+  // Use the same SWR key as the market overview and metals detail panel.
+  // AssetMarketCap provides an estimated global stock valuation; our separate
+  // metal spot feed remains authoritative for prices and conversions.
+  const { data: marketCaps, error: marketCapError } = useSWR(
+    `/api/public/market-caps?currency=${currency}&limit=100`,
+    getMarketCaps,
+    { refreshInterval: 15 * 60 * 1000, dedupingInterval: 60_000, revalidateOnFocus: false },
+  );
+  const capRow = marketCaps?.currency === currency
+    ? marketCaps.data.find((row) => row.trackedAsset === asset)
+    : undefined;
 
   const summary = useMarketStore(
     (state) =>
@@ -177,33 +204,34 @@ export default function CommodityTopTiles({
               )}
         </div>
 
-        <div className="mt-1 text-xs">
+        <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
           {unavailable ? (
-            <span className="text-muted-foreground">
-              —
-            </span>
+            <span className="text-muted-foreground">—</span>
           ) : (
-            <Delta summary={activeSummary} />
+            <>
+              <Delta summary={activeSummary} />
+              {change !== null && Number.isFinite(change) && (
+                <span className={positive ? "text-muted-foreground" : "text-red-500"}>
+                  {positive ? "+" : "−"}{formatPrice(Math.abs(change), currency)} / 24h
+                </span>
+              )}
+            </>
           )}
         </div>
       </div>
 
-      {/* 24h Change */}
+      {/* Estimated global market capitalization; not the value of traded metal. */}
       <div className={tile}>
         <div className="text-xs font-medium text-muted-foreground">
-          24h Change ({currency})
+          Est. Market Cap · {currency}
         </div>
-
-        <div
-          className={`mt-2 text-2xl font-semibold ${
-            positive
-              ? "text-foreground"
-              : "text-red-500"
-          }`}
-        >
-          {unavailable || change === null
-            ? "—"
-            : `${positive ? "▲" : "▼"} ${formatPrice(Math.abs(change), currency)}`}
+        <div className="mt-2 text-2xl font-semibold text-[var(--foreground)] tabular-nums">
+          {formatMarketCap(capRow?.marketCap, currency)}
+        </div>
+        <div className="mt-1 text-xs text-muted-foreground">
+          {capRow?.marketCap != null
+            ? `Global rank #${capRow.rank} · AssetMarketCap${marketCaps?.stale ? " · cached" : ""}`
+            : marketCapError ? "Market-cap source unavailable" : "AssetMarketCap estimate pending"}
         </div>
       </div>
 

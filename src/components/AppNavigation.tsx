@@ -8,6 +8,7 @@ import {
   ArrowRight,
   ChartCandlestick,
   ChartNoAxesCombined,
+  Layers,
   Compass,
   LayoutDashboard,
   LogOut,
@@ -59,6 +60,7 @@ export default function AppNavigation() {
 
   const closeMenu = () => setOpen(false);
   const isMarkets = pathname === "/";
+  const isRankings = pathname === "/market-caps";
   const isAnalysis = pathname === "/dashboard" || assetLinks.some(asset => pathname === `/dashboard/${asset.id}`);
   const avatar = (user?.displayName || user?.email || "V").slice(0, 1).toUpperCase();
 
@@ -94,6 +96,7 @@ export default function AppNavigation() {
         <nav aria-label="Site pages">
           <span className="enterprise-menu-label">Explore</span>
           <Link href="/" className="enterprise-menu-link" aria-current={isMarkets ? "page" : undefined} onClick={closeMenu}><Compass size={17}/> Markets</Link>
+          <Link href="/market-caps" className="enterprise-menu-link" aria-current={isRankings ? "page" : undefined} onClick={closeMenu}><Layers size={17}/> Top 100 assets</Link>
           {user ? <>
             <Link href="/dashboard" className="enterprise-menu-link" aria-current={isAnalysis ? "page" : undefined} onClick={closeMenu}><LayoutDashboard size={17}/> My analysis</Link>
             <Link href="/dashboard/portfolio" className="enterprise-menu-link" aria-current={pathname.startsWith("/dashboard/portfolio") ? "page" : undefined} onClick={closeMenu}><ChartCandlestick size={17}/> Portfolio</Link>

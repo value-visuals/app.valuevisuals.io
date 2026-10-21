@@ -2,6 +2,8 @@ import CryptoComparisonChart from "@/components/charts/CompareChart";
 import MarketProvider from "@/components/providers/MarketProvider";
 import MarketList from "@/components/market/MarketList";
 import PortfolioWorkspaceOverview from "@/components/portfolio/PortfolioWorkspaceOverview";
+import PolymarketAssessment from "@/components/intelligence/PolymarketAssessment";
+import MarketCapRanking from "@/components/marketcap/MarketCapRanking";
 
 export default function DashboardPage() {
   return <MarketProvider>
@@ -14,6 +16,8 @@ export default function DashboardPage() {
       <PortfolioWorkspaceOverview/>
       <section aria-label="Your tracked markets"><MarketList/></section>
       <section className="enterprise-workspace-section" aria-labelledby="compare-title"><h2 id="compare-title">Compare assets</h2><p>Compare Bitcoin, Ethereum and Monero across market ranges.</p><CryptoComparisonChart initialBase="bitcoin" initialQuote="ethereum"/></section>
+      <PolymarketAssessment/>
+      <MarketCapRanking compact/>
     </div>
   </MarketProvider>;
 }
