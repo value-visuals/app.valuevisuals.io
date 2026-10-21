@@ -14,6 +14,9 @@ const ranges = [
   { label: "90D", days: "90" },
 ] as const;
 
+export type ChartRangeDays = (typeof ranges)[number]["days"];
+export type ChartPerformance = { asset: MarketAssetId; currency: MarketQuoteCurrency; days: ChartRangeDays; change: number | null };
+
 /** Existing metal history routes have multiple possible candle shapes. */
 function normalizePoints(payload: unknown, metal: boolean, range: string): Point[] {
   const result = payload && typeof payload === "object" ? payload as Record<string, unknown> : {};
@@ -33,8 +36,13 @@ function normalizePoints(payload: unknown, metal: boolean, range: string): Point
     .map(p => ({ time: p.t, price: p.price }));
 }
 
-export default function MarketPriceChart({ asset, currency }: { asset: MarketAssetId; currency: MarketQuoteCurrency }) {
-  const [days, setDays] = useState("7");
+export default function MarketPriceChart({ asset, currency, days, onRangeChange, onPerformanceChange }: {
+  asset: MarketAssetId;
+  currency: MarketQuoteCurrency;
+  days: ChartRangeDays;
+  onRangeChange: (days: ChartRangeDays) => void;
+  onPerformanceChange: (value: ChartPerformance) => void;
+}) {
   const [points, setPoints] = useState<Point[]>([]);
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState("");
@@ -51,14 +59,26 @@ export default function MarketPriceChart({ asset, currency }: { asset: MarketAss
       if (!response.ok) throw new Error("Price history is temporarily unavailable.");
       return response.json();
     }).then(payload => {
-      if (!controller.signal.aborted) setPoints(normalizePoints(payload, isMetal, days));
+      if (controller.signal.aborted) return;
+      const history = normalizePoints(payload, isMetal, days);
+      setPoints(history);
+      const firstPrice = history[0]?.price;
+      const lastPrice = history[history.length - 1]?.price;
+      onPerformanceChange({
+        asset, currency, days,
+        change: history.length >= 2 && firstPrice != null && firstPrice > 0 && lastPrice != null && Number.isFinite(lastPrice)
+          ? ((lastPrice / firstPrice) - 1) * 100
+          : null,
+      });
     }).catch(() => {
-      if (!controller.signal.aborted) setError("Chart feed temporarily unavailable.");
+      if (controller.signal.aborted) return;
+      setError("Chart feed temporarily unavailable.");
+      onPerformanceChange({ asset, currency, days, change: null });
     }).finally(() => {
       if (!controller.signal.aborted) setBusy(false);
     });
     return () => controller.abort();
-  }, [asset, currency, days, isMetal]);
+  }, [asset, currency, days, isMetal, onPerformanceChange]);
 
   const first = points[0]?.price ?? 0;
   const last = points[points.length - 1]?.price ?? 0;
@@ -74,7 +94,7 @@ export default function MarketPriceChart({ asset, currency }: { asset: MarketAss
       <div><p className="text-xs text-muted-foreground">Price performance</p>
         <p className="text-sm font-semibold">{`${ranges.find(r => r.days === days)?.label} price history`}</p></div>
       <div className="vv-range-controls" aria-label="Chart range">{ranges.map(range =>
-        <button type="button" key={range.days} aria-pressed={days === range.days} onClick={() => setDays(range.days)} className={days === range.days ? "active" : ""}>{range.label}</button>,
+        <button type="button" key={range.days} aria-pressed={days === range.days} onClick={() => onRangeChange(range.days)} className={days === range.days ? "active" : ""}>{range.label}</button>,
       )}</div>
     </div>
     <div className="h-[240px] sm:h-[275px] w-full min-w-0">

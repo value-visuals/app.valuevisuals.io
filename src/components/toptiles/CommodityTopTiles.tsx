@@ -150,18 +150,18 @@ export default function CommodityTopTiles({
   const tile =
     "rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4 shadow-sm transition-colors min-w-0";
 
-  const unavailable =
-    !!error || (loading && !summary);
+  // A previous currency's summary must never be displayed under the new currency.
+  const activeSummary = summary?.base?.toUpperCase() === currency ? summary : null;
+  const unavailable = Boolean(error) || (loading && !activeSummary) || !activeSummary;
 
-  const change =
-    summary?.change24h ?? null;
+  const change = activeSummary?.change24h ?? null;
 
   const positive =
     change == null || change >= 0;
 
   return (
     <div
-      className={`grid gap-4 sm:grid-cols-2 lg:grid-cols-4 ${className}`}
+      className={`grid grid-cols-2 gap-4 lg:grid-cols-4 ${className}`}
     >
       {/* Price */}
       <div className={tile}>
@@ -173,7 +173,7 @@ export default function CommodityTopTiles({
           {unavailable
             ? "—"
             : formatPrice(
-                summary?.price, currency
+                activeSummary?.price, currency
               )}
         </div>
 
@@ -183,7 +183,7 @@ export default function CommodityTopTiles({
               —
             </span>
           ) : (
-            <Delta summary={summary} />
+            <Delta summary={activeSummary} />
           )}
         </div>
       </div>
@@ -201,13 +201,9 @@ export default function CommodityTopTiles({
               : "text-red-500"
           }`}
         >
-          {unavailable
+          {unavailable || change === null
             ? "—"
-            : `${positive ? "▲" : "▼"} ${formatPrice(
-                Math.abs(
-                  summary?.change24h ?? 0
-                ), currency
-              )}`}
+            : `${positive ? "▲" : "▼"} ${formatPrice(Math.abs(change), currency)}`}
         </div>
       </div>
 
@@ -221,7 +217,7 @@ export default function CommodityTopTiles({
           {unavailable
             ? "—"
             : formatPrice(
-                summary?.high24h, currency
+                activeSummary?.high24h, currency
               )}
         </div>
       </div>
@@ -236,7 +232,7 @@ export default function CommodityTopTiles({
           {unavailable
             ? "—"
             : formatPrice(
-                summary?.low24h, currency
+                activeSummary?.low24h, currency
               )}
         </div>
       </div>

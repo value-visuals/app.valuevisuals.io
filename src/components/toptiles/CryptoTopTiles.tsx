@@ -61,7 +61,7 @@ export default function CryptoTopTiles({ asset, className = "" }: Props) {
   const error = Boolean(cryptoError);
 
   return (
-    <div className={`grid gap-4 sm:grid-cols-2 lg:grid-cols-4 ${className}`}>
+    <div className={`grid grid-cols-2 gap-4 lg:grid-cols-4 ${className}`}>
       <TopTile label={`${SYMBOL[asset]} price`} value={money(price, currency)} change={change} error={error} />
       <TopTile label="Market capitalization" value={money(cap, currency, true)} fullValue={money(cap, currency)} error={error} />
       <TopTile label="24h trading volume" value={money(volume, currency, true)} fullValue={money(volume, currency)} error={error} />

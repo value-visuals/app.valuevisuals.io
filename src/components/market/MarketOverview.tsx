@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import useSWR from "swr";
 import { ArrowDownRight, ArrowRight, ArrowUpRight, CircleHelp, ExternalLink, RefreshCw, Search } from "lucide-react";
@@ -11,7 +11,7 @@ import { clientApiUrl } from "@/lib/clientApiUrl";
 import { formatMoney, formatChange } from "@/lib/market/format";
 import { ASSETS, type MarketAsset, type MarketAssetId, type PublicMarkets } from "@/lib/market/publicMarketTypes";
 import AssetMark from "./AssetMark";
-import MarketPriceChart from "./MarketPriceChart";
+import MarketPriceChart, { type ChartPerformance, type ChartRangeDays } from "./MarketPriceChart";
 import OverviewHighlights from "./OverviewHighlights";
 import Sparkline from "./Sparkline";
 
@@ -33,6 +33,9 @@ export default function MarketOverview() {
   const { user } = useAuth();
   const { openAuth } = useAuthModal();
   const [selectedId, setSelectedId] = useState<MarketAssetId>("bitcoin");
+  const [chartDays, setChartDays] = useState<ChartRangeDays>("7");
+  const [chartPerformance, setChartPerformance] = useState<ChartPerformance | null>(null);
+  const onChartPerformance = useCallback((value: ChartPerformance) => setChartPerformance(value), []);
   const [category, setCategory] = useState<Category>("All assets");
   const [query, setQuery] = useState("");
   const { data, error, isLoading, isValidating, mutate } = useSWR(`/api/public/markets?currency=${currency}`, getMarkets, {
@@ -40,6 +43,9 @@ export default function MarketOverview() {
   });
   const assets = data && data.currency === currency ? data.assets : fallback;
   const selected = assets.find(asset => asset.id === selectedId) ?? assets[0];
+  const performanceMatches = chartPerformance?.asset === selected.id && chartPerformance.currency === currency && chartPerformance.days === chartDays;
+  const selectedChange = performanceMatches ? chartPerformance.change : null;
+  const selectedPeriod = chartDays === "1" ? "last 24 hours" : `last ${chartDays} days`;
   const filtered = useMemo(() => assets.filter(asset => (category === "All assets" || category === asset.category) && `${asset.name} ${asset.symbol}`.toLowerCase().includes(query.trim().toLowerCase())), [assets, category, query]);
   const lastUpdated = data?.updatedAt ? new Date(data.updatedAt).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }) : "—";
   const available = assets.filter(asset => asset.price != null).length;
@@ -87,8 +93,8 @@ export default function MarketOverview() {
 
       <aside className="enterprise-panel enterprise-detail" id={selected.id} aria-label={`Detailed ${selected.name} market quote`}>
         <div className="detail-top"><div className="detail-identity"><AssetMark asset={selected.id} size={43}/><div><h3>{selected.name}</h3><span>{selected.symbol} / {currency}</span></div></div><span className="detail-category">{selected.category}</span></div>
-        <div className="detail-price-area"><div className="detail-label">CURRENT PRICE</div><div className="detail-price">{formatMoney(selected.price, currency)}</div><div className="detail-change"><Change value={selected.change24h}/><span>last 24 hours</span></div></div>
-        <MarketPriceChart asset={selected.id} currency={currency}/>
+        <div className="detail-price-area"><div className="detail-label">CURRENT PRICE</div><div className="detail-price">{formatMoney(selected.price, currency)}</div><div className="detail-change" aria-live="polite"><Change value={selectedChange}/><span>{selectedPeriod}</span></div></div>
+        <MarketPriceChart asset={selected.id} currency={currency} days={chartDays} onRangeChange={setChartDays} onPerformanceChange={onChartPerformance}/>
         <div className="detail-grid"><div><span>Market cap</span><strong>{formatMoney(selected.marketCap, currency, true)}</strong></div><div><span>24h volume</span><strong>{formatMoney(selected.volume24h, currency, true)}</strong></div><div><span>7d change</span><strong>{formatChange(selected.change7d)}</strong></div><div><span>Primary source</span><strong>{selected.source}</strong></div></div>
         {user && <Link className="detail-analysis-link" href={`/dashboard/${selected.id}`}>Full {selected.name} analysis <ExternalLink size={15}/></Link>}
         {!user && <p className="detail-guest-note">Want historical portfolio data and detailed analysis? <button type="button" className="vv-inline-auth" onClick={() => openAuth("signup")}>Create your workspace <ArrowRight size={13}/></button></p>}

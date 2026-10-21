@@ -714,6 +714,7 @@ export default function MarketList({
   return (
     <section
       className={`
+        mi-market-list
         overflow-hidden
         rounded-2xl
         border
@@ -743,11 +744,11 @@ export default function MarketList({
           uppercase
           tracking-wider
           text-muted-foreground
-          sm:grid
-          sm:px-5
+          lg:grid
+          lg:px-5
         "
       >
-        <div className="col-span-3">
+        <div className="col-span-2">
           Asset
         </div>
 
@@ -763,7 +764,7 @@ export default function MarketList({
           7d
         </div>
 
-        <div className="col-span-2 text-center">
+        <div className="col-span-3 text-center">
           7D Chart
         </div>
 
@@ -780,7 +781,7 @@ export default function MarketList({
         </div>
       </div>
 
-      <div className="divide-y divide-border/50">
+      <div className="mi-market-rows lg:divide-y lg:divide-border/50">
         {assets.map(
           (asset, index) => (
             <MarketRowItem
@@ -811,6 +812,7 @@ function Header() {
   return (
     <div
       className="
+        mi-market-list-header
         flex
         items-center
         justify-between
@@ -818,7 +820,7 @@ function Header() {
         border-border/60
         px-4
         py-4
-        sm:px-5
+        lg:px-5
       "
     >
       <div>
@@ -881,6 +883,7 @@ function MarketRowItem({
     <Link
       href={`/dashboard/${asset.id}`}
       className="
+        mi-market-card
         block
         transition-colors
         hover:bg-muted/30
@@ -894,18 +897,18 @@ function MarketRowItem({
       <div
         className="
           grid
-          grid-cols-1
+          grid-cols-2
           gap-3
           px-4
           py-4
-          sm:grid-cols-12
-          sm:items-center
-          sm:gap-4
-          sm:px-5
+          lg:grid-cols-12
+          lg:items-center
+          lg:gap-4
+          lg:px-5
         "
       >
         {/* Asset */}
-        <div className="flex min-w-0 items-center gap-3 sm:col-span-3">
+        <div className="col-span-2 flex min-w-0 items-center gap-3 lg:col-span-2">
           <span
             className="
               hidden
@@ -914,7 +917,7 @@ function MarketRowItem({
               text-xs
               tabular-nums
               text-muted-foreground/60
-              sm:block
+              lg:block
             "
           >
             {index + 1}
@@ -940,8 +943,8 @@ function MarketRowItem({
         </div>
 
         {/* Price */}
-        <div className="flex items-center justify-between sm:col-span-2 sm:block sm:text-right">
-          <span className="text-xs text-muted-foreground sm:hidden">
+        <div className="mi-metric order-2 col-span-1 flex items-center justify-between lg:order-none lg:col-span-2 lg:block lg:text-right">
+          <span className="text-xs text-muted-foreground lg:hidden">
             Price
           </span>
 
@@ -954,8 +957,8 @@ function MarketRowItem({
         </div>
 
         {/* 24h */}
-        <div className="flex items-center justify-between sm:col-span-1 sm:block sm:text-right">
-          <span className="text-xs text-muted-foreground sm:hidden">
+        <div className="mi-metric order-2 col-span-1 flex items-center justify-between lg:order-none lg:col-span-1 lg:block lg:text-right">
+          <span className="text-xs text-muted-foreground lg:hidden">
             24h
           </span>
 
@@ -975,8 +978,8 @@ function MarketRowItem({
         </div>
 
         {/* 7d */}
-        <div className="flex items-center justify-between sm:col-span-1 sm:block sm:text-right">
-          <span className="text-xs text-muted-foreground sm:hidden">
+        <div className="mi-metric order-2 col-span-1 flex items-center justify-between lg:order-none lg:col-span-1 lg:block lg:text-right">
+          <span className="text-xs text-muted-foreground lg:hidden">
             7d
           </span>
 
@@ -996,21 +999,22 @@ function MarketRowItem({
         </div>
 
         {/* 7D Chart */}
-        <div className="flex items-center justify-between sm:col-span-2 sm:justify-center">
-          <span className="text-xs text-muted-foreground sm:hidden">
+        <div className="mi-chart order-1 col-span-2 flex items-center justify-between lg:order-none lg:col-span-3 lg:justify-center">
+          <span className="text-xs text-muted-foreground lg:hidden">
             7D Chart
           </span>
 
-          <div className="w-full max-w-[140px]">
+          <div className="w-full min-w-0">
             <MarketChart
               asset={asset.id}
+              className="mi-market-chart"
             />
           </div>
         </div>
 
         {/* 24h Volume */}
-        <div className="flex items-center justify-between sm:col-span-1 sm:block sm:text-right">
-          <span className="text-xs text-muted-foreground sm:hidden">
+        <div className="mi-metric order-2 col-span-1 flex items-center justify-between lg:order-none lg:col-span-1 lg:block lg:text-right">
+          <span className="text-xs text-muted-foreground lg:hidden">
             Volume
           </span>
 
@@ -1030,8 +1034,8 @@ function MarketRowItem({
         </div>
 
         {/* Market Cap */}
-        <div className="flex items-center justify-between sm:col-span-1 sm:block sm:text-right">
-          <span className="text-xs text-muted-foreground sm:hidden">
+        <div className="mi-metric order-2 col-span-1 flex items-center justify-between lg:order-none lg:col-span-1 lg:block lg:text-right">
+          <span className="text-xs text-muted-foreground lg:hidden">
             Market Cap
           </span>
 
@@ -1051,8 +1055,8 @@ function MarketRowItem({
         </div>
 
         {/* Dominance */}
-        <div className="flex items-center justify-between sm:col-span-1 sm:block sm:text-right">
-          <span className="text-xs text-muted-foreground sm:hidden">
+        <div className="mi-metric order-2 col-span-1 flex items-center justify-between lg:order-none lg:col-span-1 lg:block lg:text-right">
+          <span className="text-xs text-muted-foreground lg:hidden">
             Dominance
           </span>
 
