@@ -7,9 +7,13 @@ export const metadata: Metadata = {
 };
 
 export default function MarketCapsPage() {
-  return <main className="enterprise-main" style={{ paddingTop: 20 }} aria-label="Global asset market capitalization rankings">
-    <div className="enterprise-breadcrumb" style={{ paddingBottom: 14 }}>MARKETS <span>/</span> GLOBAL ASSETS</div>
-    <h1 className="sr-only">Top 100 assets by market capitalization</h1>
-    <MarketCapRanking />
-  </main>;
+  return (
+    <main className="enterprise-main vv-top100-page" aria-label="Global asset market capitalization rankings">
+      <div className="enterprise-breadcrumb vv-top100-breadcrumb">
+        MARKETS <span>/</span> GLOBAL ASSETS
+      </div>
+      <h1 className="sr-only">Top 100 assets by market capitalization</h1>
+      <MarketCapRanking />
+    </main>
+  );
 }

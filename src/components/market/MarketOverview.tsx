@@ -78,16 +78,16 @@ export default function MarketOverview() {
     return () => window.removeEventListener("hashchange", syncHash);
   }, []);
 
-  return <main className="enterprise-main" id="overview">
+  return <main className="enterprise-main enterprise-home" id="overview">
     <div className="enterprise-market-heading">
       <div>
         <h1 className="sr-only">Market overview</h1>
         <div className="enterprise-breadcrumb">MARKETS <span>/</span> OVERVIEW <span className="live-chip"><span className="live-orb"/> LIVE</span></div>
       </div>
-      <div className="enterprise-market-heading-actions"><Link href="/market-caps" className="inline-flex min-h-[37px] items-center gap-1.5 rounded-lg border border-border bg-card px-3 text-xs font-semibold hover:bg-muted">Top 100 assets <ArrowRight size={13}/></Link><button type="button" className="enterprise-refresh" aria-label="Refresh market quotes" title="Refresh quotes" onClick={() => void mutate()} disabled={isValidating}><RefreshCw size={16} className={isValidating ? "animate-spin" : ""}/></button></div>
+      <div className="enterprise-market-heading-actions"><Link href="/market-caps" className="enterprise-top100-link" aria-label="Top 100 assets"><span>Top 100<span className="enterprise-top100-assets-word"> assets</span></span><ArrowRight size={14}/></Link><button type="button" className="enterprise-refresh" aria-label="Refresh market quotes" title="Refresh quotes" onClick={() => void mutate()} disabled={isValidating}><RefreshCw size={16} className={isValidating ? "animate-spin" : ""}/></button></div>
     </div>
 
-    <div className="enterprise-meta-row"><span><span className="live-orb"/> {available} of 5 asset feeds available</span><i/><span>{isLoading ? "Loading market data" : isValidating ? "Updating quotes…" : `Updated ${lastUpdated}`}</span><i/><span>{data?.stale ? "Using last known public quotes" : "Public market reference"}</span></div>
+    <div className="enterprise-meta-row"><span><span className="live-orb"/><strong className="enterprise-mobile-live-label">LIVE</strong> {available} of 5 asset feeds available</span><i/><span>{isLoading ? "Loading market data" : isValidating ? "Updating quotes…" : `Updated ${lastUpdated}`}</span><i/><span>{data?.stale ? "Using last known public quotes" : "Public market reference"}</span></div>
 
     <OverviewHighlights currency={currency} data={data}/>
 
@@ -106,13 +106,13 @@ export default function MarketOverview() {
         <div className="enterprise-table-footer"><span>Showing {filtered.length} of {assets.length} assets</span><span><span className="live-orb"/> Market data updates every 60s</span></div>
       </section>
 
-      <aside className="enterprise-panel enterprise-detail" id={selected.id} aria-label={`Detailed ${selected.name} market quote`}>
+      <aside className={`enterprise-panel enterprise-detail${!user ? " enterprise-detail-guest" : ""}`} id={selected.id} aria-label={`Detailed ${selected.name} market quote`}>
         <div className="detail-top"><div className="detail-identity"><AssetMark asset={selected.id} size={43}/><div><h3>{selected.name}</h3><span>{selected.symbol} / {currency}</span></div></div><span className="detail-category">{selected.category}</span></div>
         <div className="detail-price-area"><div className="detail-label">CURRENT PRICE</div><div className="detail-price">{formatMoney(selected.price, currency)}</div><div className="detail-change" aria-live="polite"><Change value={selectedChange}/><span>{selectedPeriod}</span></div></div>
         <MarketPriceChart asset={selected.id} currency={currency} days={chartDays} onRangeChange={setChartDays} onPerformanceChange={onChartPerformance}/>
         <div className="detail-grid"><div><span>Market cap</span><strong>{formatMoney(selected.marketCap, currency, true)}</strong></div><div><span>24h volume</span><strong>{formatMoney(selected.volume24h, currency, true)}</strong></div><div><span>7d change</span><strong>{formatChange(selected.change7d)}</strong></div><div><span>Primary source</span><strong>{selected.source}</strong></div></div>
         {user && <Link className="detail-analysis-link" href={`/dashboard/${selected.id}`}>Full {selected.name} analysis <ExternalLink size={15}/></Link>}
-        {!user && <p className="detail-guest-note">Want historical portfolio data and detailed analysis? <button type="button" className="vv-inline-auth" onClick={() => openAuth("signup")}>Create your workspace <ArrowRight size={13}/></button></p>}
+        {!user && <p className="detail-guest-note"><span>Portfolio history &amp; analysis?</span><button type="button" className="vv-inline-auth" onClick={() => openAuth("signup")}>Create your workspace <ArrowRight size={13}/></button></p>}
       </aside>
     </div>
     <div className="enterprise-disclaimer"><CircleHelp size={16}/><span>Public quotes are indicative. Gold and silver spot prices are per troy ounce. Precious-metal market caps, when available, are estimated above-ground valuations from AssetMarketCap. Global Fear & Greed is not calculated from Value Visuals assets.</span></div>

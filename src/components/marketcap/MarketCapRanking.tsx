@@ -8,6 +8,7 @@ import { useCurrency } from "@/components/Currency";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { useAuthModal } from "@/components/auth/AuthModal";
 import AssetMark from "@/components/market/AssetMark";
+import AssetTypeDropdown from "@/components/ui/AssetTypeDropdown";
 import { clientApiUrl } from "@/lib/clientApiUrl";
 import type { MarketCapRankingResponse, RankedAsset, TrackedMarketCapAsset } from "@/lib/market/assetMarketCapTypes";
 import styles from "./MarketCapRanking.module.css";
@@ -124,26 +125,37 @@ export default function MarketCapRanking({ compact = false }: { compact?: boolea
 
   return <section className={`${styles.ranking} ${compact ? styles.compact : ""}`} aria-label={compact ? "Top 10 global assets by market capitalization" : "Top 100 global assets by market capitalization"}>
     <div className={styles.heading}>
-      <div>
-        <span className={styles.eyebrow}>GLOBAL ASSET RANKINGS / ASSETMARKETCAP</span>
+      <div className={styles.headingText}>
+        {compact && <span className={styles.eyebrow}>GLOBAL ASSET RANKINGS / ASSETMARKETCAP</span>}
         <h2>{compact ? "Top 10 assets" : "Top 100 assets"}<span className={styles.accent}>.</span></h2>
         <p>Ranked by market capitalization across asset classes. Supported Value Visuals assets are highlighted.</p>
       </div>
       <div className={styles.headActions}>
         <span className={styles.currencyLabel}>{currency}</span>
-        <button type="button" onClick={() => void mutate()} disabled={isValidating} className={styles.refresh} aria-label="Refresh market cap rankings" title="Refresh cached rankings"><RefreshCw size={15} className={isValidating ? "animate-spin" : ""}/></button>
+        <button type="button" onClick={() => void mutate()} disabled={isValidating} className={styles.refresh} aria-label="Refresh market cap rankings" title="Refresh cached rankings"><RefreshCw size={16} className={isValidating ? "animate-spin" : ""}/></button>
         {compact && <Link href="/market-caps" className={styles.viewAll}>View all 100 <ArrowRight size={14}/></Link>}
       </div>
     </div>
     {!compact && <div className={styles.summary} aria-label="Ranking summary">
-      <span><strong>{current?.count ?? "—"}</strong> ranked assets</span>
-      <span><strong>{current?.data.filter((row) => row.trackedAsset).length ?? "—"}</strong> listed on Value Visuals</span>
-      <span>Source prices: USD <span aria-hidden="true">·</span> Display: {currency}</span>
-      <span>Estimates, not independently audited</span>
+      <div className={styles.summaryCounts}>
+        <span><strong>{current?.count ?? "—"}</strong> ranked assets</span>
+        <span><strong>{current?.data.filter((row) => row.trackedAsset).length ?? "—"}</strong> listed on Value Visuals</span>
+      </div>
+      <div className={styles.summarySource}>
+        <span>Source prices: USD <span aria-hidden="true">·</span> Display: {currency}</span>
+        <span>Estimates, not independently audited</span>
+      </div>
     </div>}
     {!compact && <div className={styles.filters}>
       <label className={styles.search}><Search size={15}/><input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search asset or ticker" aria-label="Search assets by name or ticker"/></label>
-      <label className={styles.categoryLabel}><span className="sr-only">Asset category</span><select value={category} onChange={(event) => setCategory(event.target.value)}><option value="all">All asset types</option>{categories.map((t) => <option key={t} value={t}>{t}</option>)}</select></label>
+      <div className={styles.categoryLabel}>
+        <AssetTypeDropdown
+          value={category}
+          onValueChange={setCategory}
+          label="Filter assets by type"
+          options={[{ value: "all", label: "All asset types" }, ...categories.map((name) => ({ value: name, label: name }))]}
+        />
+      </div>
       <label className={styles.trackedFilter}><input type="checkbox" checked={trackedOnly} onChange={(event) => setTrackedOnly(event.target.checked)}/> Value Visuals only</label>
     </div>}
     {error && <div className={styles.notice} role="status">Market-cap rankings are currently unavailable. {current ? "Last snapshot remains visible." : ""} <button type="button" onClick={() => void mutate()}>Retry</button></div>}
