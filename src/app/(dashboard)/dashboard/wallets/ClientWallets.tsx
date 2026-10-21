@@ -19,6 +19,7 @@ type MetalWallet = { id: string; name: string; amount: number; unit: MetalUnit }
 type InitialMetals = { gold: MetalWallet[]; silver: MetalWallet[] };
 type WalletFilter = "all" | Chain | Metal;
 type ListedWallet = (WalletItem & { kind: "crypto" }) | (MetalWallet & { kind: "metal"; chain: Metal });
+const METAL_ICON = { gold: "🥇", silver: "🥈" } as const;
 const fieldClass = "min-w-0 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-foreground/20";
 const outlineAction = "inline-flex min-h-9 items-center justify-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-sm font-semibold text-foreground transition hover:bg-muted/60 disabled:opacity-50";
 const solidAction = "inline-flex min-h-9 items-center justify-center gap-2 rounded-lg bg-foreground px-3 py-2 text-sm font-semibold text-background transition hover:opacity-85 disabled:opacity-50";
