@@ -3,6 +3,8 @@
 import React from "react";
 import Image from "next/image";
 import Link from "next/link";
+import useSWR from "swr";
+import type { MarketCapRankingResponse } from "@/lib/market/assetMarketCapTypes";
 
 import {
   useMarketStore,
@@ -213,7 +215,8 @@ function createCryptoRow(
 
 function createMetalRow(
   asset: "gold" | "silver",
-  items: MetalsSummaryItem[] | undefined
+  items: MetalsSummaryItem[] | undefined,
+  estimatedMarketCap: number | null
 ): MarketRow | null {
   if (!items?.length) {
     return null;
@@ -277,7 +280,9 @@ function createMetalRow(
         item.change7dPct
       ),
 
-    marketCap: null,
+    // Estimated above-ground valuation, supplied by AssetMarketCap.
+    // Keep the spot-price summary and price charts on their existing feeds.
+    marketCap: estimatedMarketCap,
 
     volume24h: null,
 
@@ -544,6 +549,26 @@ export default function MarketList({
       (state) => state.metalsSummary
     );
 
+  // Use the exact same cached Value Visuals route as the homepage.
+  // This fetch does not include or expose the provider's API key.
+  const { data: marketCapRanking } = useSWR<MarketCapRankingResponse>(
+    `/api/public/market-caps?currency=${currency}&limit=100`,
+    async (url: string) => {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`Market-cap feed returned ${response.status}`);
+      return (await response.json()) as MarketCapRankingResponse;
+    },
+    {
+      refreshInterval: 15 * 60 * 1000,
+      revalidateOnFocus: false,
+      dedupingInterval: 60_000,
+    }
+  );
+  const matchingCaps = marketCapRanking?.currency.toLowerCase() === currency
+    ? marketCapRanking.data : [];
+  const goldMarketCap = matchingCaps.find((row) => row.trackedAsset === "gold")?.marketCap ?? null;
+  const silverMarketCap = matchingCaps.find((row) => row.trackedAsset === "silver")?.marketCap ?? null;
+
   /*
    * These are the SAME individual CoinStats
    * objects already used by CryptoTopTiles
@@ -616,13 +641,15 @@ export default function MarketList({
       const gold =
         createMetalRow(
           "gold",
-          metalsSummary?.items
+          metalsSummary?.items,
+          goldMarketCap
         );
 
       const silver =
         createMetalRow(
           "silver",
-          metalsSummary?.items
+          metalsSummary?.items,
+          silverMarketCap
         );
 
       if (bitcoin) {
@@ -650,6 +677,8 @@ export default function MarketList({
       cryptoSummary,
       metalsSummary,
       currency,
+      goldMarketCap,
+      silverMarketCap,
       bitcoinStats,
       ethereumStats,
       moneroStats,
@@ -1033,19 +1062,18 @@ function MarketRowItem({
           )}
         </div>
 
-        {/* Market Cap */}
+        {/* Market Cap: crypto observed market cap; metals estimated above-ground valuation */}
         <div className="mi-metric order-2 col-span-1 flex items-center justify-between lg:order-none lg:col-span-1 lg:block lg:text-right">
           <span className="text-xs text-muted-foreground lg:hidden">
             Market Cap
           </span>
 
-          {asset.type ===
-          "crypto" ? (
-            <span className="text-sm font-medium tabular-nums">
-              {formatCompactCurrency(
-                asset.marketCap,
-                currency
-              )}
+          {asset.marketCap !== null ? (
+            <span
+              className="text-sm font-medium tabular-nums"
+              title={asset.type === "metal" ? "Estimated market cap · AssetMarketCap" : undefined}
+            >
+              {formatCompactCurrency(asset.marketCap, currency)}
             </span>
           ) : (
             <span className="text-sm font-medium tabular-nums text-muted-foreground">

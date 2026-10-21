@@ -1,0 +1,50 @@
+.section { display: grid; gap: 12px; min-width: 0; }
+.heading { display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 12px 18px; }
+.eyebrow { font-size: 10px; letter-spacing: .12em; font-weight: 760; color: var(--muted-foreground); }
+.heading h2 { margin: 5px 0 0; font-size: clamp(20px, 2vw, 26px); font-weight: 790; letter-spacing: -.045em; }
+.accent { color: #6b75eb; }
+.heading p { margin: 4px 0 0; color: var(--muted-foreground); font-size: 12px; }
+.headingActions { display: flex; align-items: center; gap: 8px; }
+.headingActions > a,.headingActions > button { display: inline-flex; align-items: center; gap: 5px; padding: 8px 10px; border: 1px solid var(--border); background: var(--card); border-radius: 9px; color: var(--foreground); font-size: 11px; font-weight: 710; text-decoration: none; cursor: pointer; }
+.headingActions button:disabled { opacity: .5; cursor: wait; }
+.headingActions > a:hover,.headingActions > button:hover:not(:disabled) { background: var(--muted); }
+.notice { border: 1px solid var(--border); padding: 15px; border-radius: 10px; font-size: 12px; color: var(--muted-foreground); }
+.notice button { color: var(--foreground); font-weight: 710; text-decoration: underline; }
+.stats { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 9px; }
+.stats > div { display: grid; gap: 6px; min-width: 0; padding: 14px 15px; border: 1px solid var(--border); background: var(--card); border-radius: 12px; }
+.stats span { font-size: 11px; color: var(--muted-foreground); }
+.stats strong { font-size: clamp(19px, 2vw, 24px); font-weight: 780; letter-spacing: -.045em; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.stats strong small { font-size: 12px; color: var(--muted-foreground); font-weight: 550; letter-spacing: normal; }
+.stats .time { font-size: clamp(16px, 2vw, 20px); }
+.assetList { overflow: hidden; border: 1px solid var(--border); border-radius: 12px; }
+.assetRow { display: grid; grid-template-columns: 145px 175px minmax(0,1fr) 24px; gap: 14px; align-items: center; padding: 12px 15px; border-bottom: 1px solid var(--border); font-size: 12px; }
+.assetRow:last-child { border-bottom: 0; }
+.assetRow:hover { background: color-mix(in srgb, var(--muted) 50%, transparent); }
+.assetName { display: flex; flex-direction: column; gap: 3px; text-decoration: none; min-width: 0; }
+.assetName strong { font-weight: 750; }
+.assetName small { font-size: 10px; color: var(--muted-foreground); }
+.coverage { display: grid; gap: 4px; min-width: 0; }
+.coverage span { font-size: 10px; color: var(--muted-foreground); }
+.coverage strong { font-size: 11px; font-weight: 740; font-variant-numeric: tabular-nums; }
+.topMarket { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.topMarket > a { display: inline-flex; align-items: center; gap: 4px; text-decoration: none; font-weight: 640; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.topMarket > a:hover { text-decoration: underline; text-underline-offset: 3px; }
+.topMarket > a svg { flex: none; }
+.muted { color: var(--muted-foreground); }
+.openAsset { color: var(--muted-foreground); }
+.openAsset:hover { color: var(--foreground); }
+.topContracts { display: grid; gap: 10px; }
+.subhead { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 12px; }
+.subhead strong { font-weight: 760; }
+.subhead span { font-size: 10px; color: var(--muted-foreground); }
+.contractGrid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 9px; }
+.contractCard { display: flex; flex-direction: column; gap: 9px; min-width: 0; border: 1px solid var(--border); border-radius: 11px; background: var(--card); padding: 12px; }
+.contractAsset { font-size: 10px; font-weight: 770; color: var(--muted-foreground); text-transform: uppercase; letter-spacing: .07em; }
+.contractCard > a,.contractCard > strong { font-size: 12px; line-height: 1.45; font-weight: 710; min-height: 49px; text-decoration: none; overflow-wrap: anywhere; }
+.contractCard > a:hover { text-decoration: underline; }
+.contractCard > a svg { display: inline; vertical-align: middle; }
+.contractMeta { display: flex; flex-wrap: wrap; align-items: center; gap: 7px 13px; font-size: 10px; color: var(--muted-foreground); margin-top: auto; }
+.contractMeta strong { color: var(--foreground); font-variant-numeric: tabular-nums; }
+.footnote { font-size: 10px; line-height: 1.6; color: var(--muted-foreground); }
+@media (max-width: 1000px) { .assetRow { grid-template-columns: 115px 150px minmax(0,1fr) 20px; gap: 10px; } }
+@media (max-width: 680px) { .stats { grid-template-columns: repeat(2,minmax(0,1fr)); } .stats > div { padding: 11px 12px; } .assetRow { grid-template-columns: minmax(0, 1fr) auto 18px; padding: 11px 12px; gap: 8px; } .topMarket { grid-column: 1 / -1; grid-row: 2; font-size: 11px; } .coverage { text-align: right; } .contractGrid { grid-template-columns: 1fr; } .contractCard > a,.contractCard > strong { min-height: unset; } }

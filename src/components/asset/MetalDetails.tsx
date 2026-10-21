@@ -1,6 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import useSWR from "swr";
+import { clientApiUrl } from "@/lib/clientApiUrl";
+import type { MarketCapRankingResponse } from "@/lib/market/assetMarketCapTypes";
 import { useCurrency } from "@/components/Currency";
 import { useMarketStore } from "@/stores/marketStore";
 import { toTroyOunces } from "@/lib/portfolio/metals";
@@ -24,8 +27,23 @@ function money(value: number | null, currency: string): string {
   }).format(value);
 }
 
+async function loadCaps(url: string): Promise<MarketCapRankingResponse> {
+  const response = await fetch(clientApiUrl(url), { cache: "no-store" });
+  if (!response.ok) throw new Error("Market-cap feed unavailable");
+  return response.json();
+}
+function compactMoney(value: number | null, currency: string): string {
+  if (value === null || !Number.isFinite(value)) return "—";
+  return new Intl.NumberFormat("en-US", { style: "currency", currency, notation: "compact", maximumFractionDigits: 2 }).format(value);
+}
+
 export default function MetalDetails({ asset }: { asset: MetalAsset }) {
   const { currency } = useCurrency();
+  const { data: caps } = useSWR(`/api/public/market-caps?currency=${currency}&limit=100`, loadCaps, {
+    refreshInterval: 15 * 60 * 1000, dedupingInterval: 40_000, revalidateOnFocus: false,
+  });
+  // Independent valuation source. Never substitute the ranking's indicative unit price for spot pricing.
+  const metalCap = caps?.currency === currency ? caps.data.find((item) => item.trackedAsset === asset) : null;
   const summary = useMarketStore((state) => asset === "gold" ? state.goldSummary : state.silverSummary);
   const loading = useMarketStore((state) => asset === "gold" ? state.goldLoading : state.silverLoading);
   const error = useMarketStore((state) => asset === "gold" ? state.goldError : state.silverError);
@@ -111,13 +129,14 @@ export default function MetalDetails({ asset }: { asset: MetalAsset }) {
           <div><dt>Price / troy ounce</dt><dd>{money(price, currency)}</dd></div>
           <div><dt>Price / gram</dt><dd>{money(price !== null ? price / 31.1034768 : null, currency)}</dd></div>
           <div><dt>Market</dt><dd>Spot metal</dd></div>
-          <div><dt>Estimated total market cap</dt><dd>Pending source</dd></div>
+          <div><dt>Estimated total market cap</dt><dd>{compactMoney(metalCap?.marketCap ?? null, currency)}</dd></div>
+          <div><dt>Global market-cap rank</dt><dd>{metalCap?.rank ? `#${metalCap.rank}` : "—"}</dd></div>
           <div><dt>Feed</dt><dd>{activeSummary?.source || "Value Visuals"}</dd></div>
         </dl>
         {error && <p className={styles.dataNotice}>Metal price data is temporarily unavailable.</p>}
         {!error && (loading || !activeSummary) && <p className={styles.dataNotice}>Loading spot prices…</p>}
       </section>
-      <p className={styles.detailNote}>Estimated above-ground metal market cap will be displayed when the AssetMarketCap feed is integrated into the backend. It is not cryptocurrency circulating supply or crypto dominance.</p>
+      <p className={styles.detailNote}>Market capitalization is an estimated above-ground stock valuation from AssetMarketCap, independent of the spot-price feed above. The estimate is not cryptocurrency circulating supply or dominance. Unavailable figures are shown as —.</p>
     </div>
   );
 }
