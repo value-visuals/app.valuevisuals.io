@@ -235,6 +235,24 @@ export default function BitcoinDetails() {
         </p>
         {networkError && <p className={styles.bitcoinDataError}>Network figures are temporarily unavailable.</p>}
       </section>
+
+      <section className={styles.bitcoinSideSection} aria-label="Bitcoin resources">
+        <div className={styles.bitcoinSectionHead}>
+          <h3>Bitcoin resources</h3>
+          <span>Research &amp; explorers</span>
+        </div>
+        <div className={styles.bitcoinResources}>
+          <a href="https://bitcoin.org/bitcoin.pdf" target="_blank" rel="noopener noreferrer">
+            Whitepaper <span aria-hidden="true">↗</span>
+          </a>
+          <a href="https://mempool.space/" target="_blank" rel="noopener noreferrer">
+            Mempool explorer <span aria-hidden="true">↗</span>
+          </a>
+          <a href="https://bitcoin.org/" target="_blank" rel="noopener noreferrer">
+            Bitcoin.org <span aria-hidden="true">↗</span>
+          </a>
+        </div>
+      </section>
     </div>
   );
 }

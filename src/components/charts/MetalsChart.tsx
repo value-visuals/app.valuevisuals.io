@@ -20,7 +20,10 @@ import {
   Tooltip,
   ResponsiveContainer,
   CartesianGrid,
+  ReferenceLine,
+  ReferenceDot,
 } from "recharts";
+import AssetPriceTooltip from "./AssetPriceTooltip";
 
 /* -------------------------------------------------------------------------- */
 /* Types                                                                      */
@@ -41,8 +44,8 @@ const METAL_META: Record<
   Metal,
   { name: string; color: string; symbol: "XAU" | "XAG" | "XPT" | "XPD" }
 > = {
-  gold: { name: "Gold", color: "#FFD700", symbol: "XAU" },
-  silver: { name: "Silver", color: "#C0C0C0", symbol: "XAG" },
+  gold: { name: "Gold", color: "#c99d35", symbol: "XAU" },
+  silver: { name: "Silver", color: "#93a3b3", symbol: "XAG" },
   platinum: { name: "Platinum", color: "#E5E4E2", symbol: "XPT" },
   palladium: { name: "Palladium", color: "#B0C4DE", symbol: "XPD" },
 };
@@ -83,7 +86,7 @@ function toChartData(payload: any): ChartPoint[] {
     .map((row: any): ChartPoint | null => {
       if (Array.isArray(row)) {
         const t = parseChartTimestamp(row[0]);
-        const price = Number(row[1] ?? row[4]);
+        const price = Number(row.length >= 5 ? row[4] : row[1]);
 
         if (!Number.isFinite(t) || !Number.isFinite(price)) return null;
 
@@ -297,49 +300,6 @@ function getXAxisTicks(points: ChartPoint[], totalDays: number): number[] {
 }
 
 /* -------------------------------------------------------------------------- */
-/* Tooltip                                                                     */
-/* -------------------------------------------------------------------------- */
-
-function ChartTooltip({
-  active,
-  payload,
-  label,
-  currency,
-  totalDays,
-}: {
-  active?: boolean;
-  payload?: any[];
-  label?: number;
-  currency: string;
-  totalDays: number;
-}) {
-  if (!active || !payload?.length) return null;
-
-  const price = Number(payload[0]?.value);
-  if (!Number.isFinite(price)) return null;
-
-  const date = new Date(Number(label));
-
-  return (
-    <div className="min-w-[165px] rounded-xl border border-border/70 bg-popover/95 px-3 py-2.5 shadow-xl backdrop-blur-md">
-      <div className="mb-1 text-[11px] font-medium text-muted-foreground">
-        {date.toLocaleString(undefined, {
-          month: "short",
-          day: "numeric",
-          year: "numeric",
-          hour: totalDays <= 3 ? "numeric" : undefined,
-          minute: totalDays <= 3 ? "2-digit" : undefined,
-        })}
-      </div>
-
-      <div className="text-base font-semibold tracking-tight text-popover-foreground">
-        {formatFullMoney(price, currency)}
-      </div>
-    </div>
-  );
-}
-
-/* -------------------------------------------------------------------------- */
 /* Component                                                                  */
 /* -------------------------------------------------------------------------- */
 
@@ -354,6 +314,7 @@ export default function MetalsChart({
 
   const [range, setRange] = React.useState<string>("1d");
   const [justUpdated, setJustUpdated] = React.useState(false);
+  const [displayMode, setDisplayMode] = React.useState<"area" | "line">("area");
 
   const selected = RANGES.find((item) => item.value === range) ?? RANGES[0];
   const { currency } = useCurrency();
@@ -429,6 +390,18 @@ export default function MetalsChart({
   const isPositive = percent >= 0;
   const chartColor = meta.color;
   const gradientId = `metal-gradient-${metal}`;
+  const firstPrice = chartData.length ? chartData[0].price : null;
+  const latestPoint = chartData.length ? chartData[chartData.length - 1] : null;
+  const rangeExtremes = React.useMemo(() => {
+    if (!chartData.length) return null;
+    let low = Infinity;
+    let high = -Infinity;
+    for (const { price } of chartData) {
+      low = Math.min(low, price);
+      high = Math.max(high, price);
+    }
+    return { low, high };
+  }, [chartData]);
 
   const xAxisTicks = React.useMemo(
     () => getXAxisTicks(chartData, selected.days),
@@ -443,7 +416,7 @@ export default function MetalsChart({
     <div
       className={`
         group relative overflow-hidden rounded-2xl border border-border/70
-        bg-card text-card-foreground shadow-sm transition-shadow duration-200
+        bg-background text-foreground shadow-sm transition-shadow duration-200
         hover:shadow-md ${className}
       `}
     >
@@ -555,16 +528,26 @@ export default function MetalsChart({
             })}
           </div>
 
-          <div className="hidden shrink-0 text-[11px] text-muted-foreground sm:block">
-            {selected.label}
+          <div className="flex shrink-0 items-center rounded-lg border border-border/60 p-0.5" role="group" aria-label="Chart display">
+            {(["area", "line"] as const).map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                aria-pressed={displayMode === mode}
+                onClick={() => setDisplayMode(mode)}
+                className={`rounded-md px-2 py-1.5 text-[10px] font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring ${displayMode === mode ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+              >
+                {mode === "area" ? "Area" : "Line"}
+              </button>
+            ))}
           </div>
         </div>
 
         {/* Chart */}
         <div
           className="
-            relative -mx-5 mt-3 h-[290px] w-[calc(100%+2.5rem)]
-            sm:mx-0 sm:h-[300px] sm:w-full
+            relative -mx-5 mt-3 h-[350px] w-[calc(100%+2.5rem)]
+            sm:mx-0 sm:h-[410px] sm:w-full
           "
         >
           {isLoading && chartData.length === 0 ? (
@@ -596,14 +579,16 @@ export default function MetalsChart({
                     x2="0"
                     y2="1"
                   >
-                    <stop offset="0%" stopColor={chartColor} stopOpacity={0.4} />
+                    <stop offset="0%" stopColor={chartColor} stopOpacity={0.15} />
                     <stop offset="100%" stopColor={chartColor} stopOpacity={0} />
                   </linearGradient>
                 </defs>
 
                 <CartesianGrid
-                  stroke="var(--border)"
-                  strokeDasharray="3 3"
+                  vertical={false}
+                  stroke="var(--chart-grid)"
+                  strokeOpacity={0.65}
+                  strokeDasharray="3 5"
                 />
 
                 <XAxis
@@ -639,18 +624,15 @@ export default function MetalsChart({
                   cursor={{
                     stroke: chartColor,
                     strokeWidth: 1,
-                    strokeDasharray: "4 4",
+                    strokeDasharray: "3 5",
                     strokeOpacity: 0.55,
                   }}
-                  content={
-                    <ChartTooltip
-                      currency={normalizedCurrency}
-                      totalDays={selected.days}
-                    />
-                  }
+                  allowEscapeViewBox={{ x: false, y: false }}
+                  wrapperStyle={{ outline: "none", zIndex: 10 }}
+                  content={<AssetPriceTooltip currency={normalizedCurrency} startingPrice={firstPrice} />}
                 />
 
-                <Area
+                {displayMode === "area" && <Area
                   type="monotone"
                   dataKey="price"
                   stroke="none"
@@ -658,7 +640,7 @@ export default function MetalsChart({
                   fill={`url(#${gradientId})`}
                   isAnimationActive={!isLoading}
                   animationDuration={500}
-                />
+                />}
 
                 <Line
                   type="monotone"
@@ -675,17 +657,48 @@ export default function MetalsChart({
                   isAnimationActive={!isLoading}
                   animationDuration={500}
                 />
+                {latestPoint && (
+                  <ReferenceLine
+                    y={latestPoint.price}
+                    stroke={chartColor}
+                    strokeOpacity={0.32}
+                    strokeDasharray="2 5"
+                    label={{
+                      value: formatMoney(latestPoint.price, normalizedCurrency),
+                      position: "insideTopRight",
+                      fill: "var(--foreground)",
+                      fontSize: 11,
+                      fontWeight: 700,
+                    }}
+                  />
+                )}
+
+                {latestPoint && (
+                  <ReferenceDot
+                    x={latestPoint.t}
+                    y={latestPoint.price}
+                    r={3.5}
+                    stroke="var(--background)"
+                    strokeWidth={1.5}
+                    fill={chartColor}
+                    ifOverflow="visible"
+                  />
+                )}
               </ComposedChart>
             </ResponsiveContainer>
           )}
         </div>
 
         {/* Bottom status */}
-        <div className="mt-1 flex items-center justify-between border-t border-border/50 pt-3">
-          <div className="text-[11px] text-muted-foreground">
-            {chartData.length > 0
-              ? `${chartData.length.toLocaleString()} data points`
-              : "No data"}
+        <div className="mt-1 flex flex-wrap items-center justify-between gap-2 border-t border-border/50 pt-3">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
+            <span>{chartData.length ? `${chartData.length.toLocaleString()} data points` : "No data"}</span>
+            {rangeExtremes && (
+              <>
+                <span>Range low <strong className="font-semibold text-foreground">{formatFullMoney(rangeExtremes.low, normalizedCurrency)}</strong></span>
+                <span>Range high <strong className="font-semibold text-foreground">{formatFullMoney(rangeExtremes.high, normalizedCurrency)}</strong></span>
+              </>
+            )}
           </div>
 
           <div

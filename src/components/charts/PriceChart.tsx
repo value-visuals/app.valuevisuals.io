@@ -15,7 +15,10 @@ import {
   Tooltip,
   ResponsiveContainer,
   CartesianGrid,
+  ReferenceLine,
+  ReferenceDot,
 } from "recharts";
+import AssetPriceTooltip from "./AssetPriceTooltip";
 
 /* =========================================================
  * Types
@@ -856,12 +859,7 @@ export default function PriceChart({
     setJustUpdated,
   ] = React.useState(false);
 
-  const [
-    hoveredPrice,
-    setHoveredPrice,
-  ] = React.useState<
-    number | null
-  >(null);
+  const [displayMode, setDisplayMode] = React.useState<"area" | "line">("area");
 
   const selected =
     RANGES.find(
@@ -929,8 +927,9 @@ export default function PriceChart({
       revalidateOnFocus:
         false,
 
+      // Do not display an old currency or range under newly selected controls.
       keepPreviousData:
-        true,
+        false,
 
       onSuccess: () => {
         setJustUpdated(
@@ -997,6 +996,19 @@ export default function PriceChart({
 
   const isPositive =
     percent >= 0;
+
+  const firstPrice = chartData.length ? chartData[0].price : null;
+  const latestPoint = chartData.length ? chartData[chartData.length - 1] : null;
+  const rangeExtremes = React.useMemo(() => {
+    if (!chartData.length) return null;
+    let low = Infinity;
+    let high = -Infinity;
+    for (const { price } of chartData) {
+      low = Math.min(low, price);
+      high = Math.max(high, price);
+    }
+    return { low, high };
+  }, [chartData]);
 
   const chartColor =
     meta.color;
@@ -1069,8 +1081,8 @@ export default function PriceChart({
         rounded-2xl
         border
         border-border/70
-        bg-card
-        text-card-foreground
+        bg-background
+        text-foreground
         shadow-sm
         transition-shadow
         duration-200
@@ -1263,9 +1275,6 @@ export default function PriceChart({
                         r.value
                       );
 
-                      setHoveredPrice(
-                        null
-                      );
                     }}
                     className={`
                       h-7
@@ -1293,8 +1302,18 @@ export default function PriceChart({
             )}
           </div>
 
-          <div className="hidden shrink-0 text-[11px] text-muted-foreground sm:block">
-            {selected.label}
+          <div className="flex shrink-0 items-center rounded-lg border border-border/60 p-0.5" role="group" aria-label="Chart display">
+            {(["area", "line"] as const).map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                aria-pressed={displayMode === mode}
+                onClick={() => setDisplayMode(mode)}
+                className={`rounded-md px-2 py-1.5 text-[10px] font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring ${displayMode === mode ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+              >
+                {mode === "area" ? "Area" : "Line"}
+              </button>
+            ))}
           </div>
         </div>
 
@@ -1307,10 +1326,10 @@ export default function PriceChart({
             relative
             -mx-5
             mt-3
-            h-[290px]
+            h-[350px]
             w-[calc(100%+2.5rem)]
             sm:mx-0
-            sm:h-[300px]
+            sm:h-[410px]
             sm:w-full
           "
         >
@@ -1400,9 +1419,7 @@ export default function PriceChart({
                       stopColor={
                         meta.color
                       }
-                      stopOpacity={
-                        0.4
-                      }
+                      stopOpacity={0.15}
                     />
 
                     <stop
@@ -1410,9 +1427,7 @@ export default function PriceChart({
                       stopColor={
                         meta.color
                       }
-                      stopOpacity={
-                        0
-                      }
+                      stopOpacity={0}
                     />
                   </linearGradient>
                 </defs>
@@ -1420,8 +1435,10 @@ export default function PriceChart({
                 {/* Grid */}
 
                 <CartesianGrid
-                  stroke="var(--border)"
-                  strokeDasharray="3 3"
+                  vertical={false}
+                  stroke="var(--chart-grid)"
+                  strokeOpacity={0.65}
+                  strokeDasharray="3 5"
                 />
 
                 {/* =================================================
@@ -1504,107 +1521,21 @@ export default function PriceChart({
 
                 <Tooltip
                   cursor={{
-                    stroke:
-                      meta.color,
+                    stroke: chartColor,
                     strokeWidth: 1,
-                    strokeDasharray:
-                      "4 4",
-                    strokeOpacity:
-                      0.55,
+                    strokeDasharray: "3 5",
+                    strokeOpacity: 0.55,
                   }}
-                  formatter={(
-                    value
-                  ) =>
-                    formatMoney(
-                      Number(
-                        value
-                      ),
-                      normalizedCurrency
-                    )
-                  }
-                  labelFormatter={(
-                    value
-                  ) => {
-                    const ts =
-                      Number(
-                        value
-                      );
-
-                    if (
-                      !Number.isFinite(
-                        ts
-                      )
-                    ) {
-                      return "";
-                    }
-
-                    const d =
-                      new Date(
-                        ts
-                      );
-
-                    if (
-                      selected.days <=
-                      3
-                    ) {
-                      return d.toLocaleString(
-                        undefined,
-                        {
-                          month:
-                            "short",
-                          day:
-                            "numeric",
-                          hour:
-                            "2-digit",
-                          minute:
-                            "2-digit",
-                        }
-                      );
-                    }
-
-                    return d.toLocaleString(
-                      undefined,
-                      {
-                        month:
-                          "short",
-                        day:
-                          "numeric",
-                        year:
-                          selected.days >=
-                          30
-                            ? "numeric"
-                            : undefined,
-                      }
-                    );
-                  }}
-                  contentStyle={{
-                    background:
-                      "var(--popover)",
-                    border:
-                      "1px solid var(--border)",
-                    color:
-                      "var(--popover-foreground)",
-                    borderRadius:
-                      "0.75rem",
-                    boxShadow:
-                      "0 8px 24px rgba(0, 0, 0, 0.12)",
-                  }}
-                  labelStyle={{
-                    color:
-                      "var(--muted-foreground)",
-                  }}
-                  itemStyle={{
-                    color:
-                      meta.color,
-                    fontWeight: 600,
-                  }}
+                  allowEscapeViewBox={{ x: false, y: false }}
+                  wrapperStyle={{ outline: "none", zIndex: 10 }}
+                  content={<AssetPriceTooltip currency={normalizedCurrency} startingPrice={firstPrice} />}
                 />
 
                 {/* =================================================
                  * Area
                  * =============================================== */}
 
-                <Area
+                {displayMode === "area" && <Area
                   type="monotone"
                   dataKey="price"
                   stroke="none"
@@ -1613,10 +1544,8 @@ export default function PriceChart({
                   isAnimationActive={
                     !isLoading
                   }
-                  animationDuration={
-                    500
-                  }
-                />
+                  animationDuration={500}
+                />}
 
                 {/* =================================================
                  * Price line
@@ -1643,10 +1572,36 @@ export default function PriceChart({
                   isAnimationActive={
                     !isLoading
                   }
-                  animationDuration={
-                    500
-                  }
+                  animationDuration={500}
                 />
+                {/* Selected-range closing level and last recorded point. */}
+                {latestPoint && (
+                  <ReferenceLine
+                    y={latestPoint.price}
+                    stroke={chartColor}
+                    strokeOpacity={0.32}
+                    strokeDasharray="2 5"
+                    label={{
+                      value: formatMoney(latestPoint.price, normalizedCurrency),
+                      position: "insideTopRight",
+                      fill: "var(--foreground)",
+                      fontSize: 11,
+                      fontWeight: 700,
+                    }}
+                  />
+                )}
+
+                {latestPoint && (
+                  <ReferenceDot
+                    x={latestPoint.t}
+                    y={latestPoint.price}
+                    r={3.5}
+                    stroke="var(--background)"
+                    strokeWidth={1.5}
+                    fill={chartColor}
+                    ifOverflow="visible"
+                  />
+                )}
               </ComposedChart>
             </ResponsiveContainer>
           )}
@@ -1666,12 +1621,15 @@ export default function PriceChart({
          * Bottom status
          * =============================================== */}
 
-        <div className="mt-1 flex items-center justify-between border-t border-border/50 pt-3">
-          <div className="text-[11px] text-muted-foreground">
-            {chartData.length >
-            0
-              ? `${chartData.length.toLocaleString()} data points`
-              : "No data"}
+        <div className="mt-1 flex flex-wrap items-center justify-between gap-2 border-t border-border/50 pt-3">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
+            <span>{chartData.length ? `${chartData.length.toLocaleString()} data points` : "No data"}</span>
+            {rangeExtremes && (
+              <>
+                <span>Range low <strong className="font-semibold text-foreground">{formatFullMoney(rangeExtremes.low, normalizedCurrency)}</strong></span>
+                <span>Range high <strong className="font-semibold text-foreground">{formatFullMoney(rangeExtremes.high, normalizedCurrency)}</strong></span>
+              </>
+            )}
           </div>
 
           <div

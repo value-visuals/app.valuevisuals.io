@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import useSWR from "swr";
-import { ArrowDown, ArrowUp, ExternalLink, RefreshCw } from "lucide-react";
+import { ArrowDown, ArrowUp, ExternalLink, RefreshCw, Search } from "lucide-react";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { authenticatedFetch } from "@/lib/auth/authenticatedFetch";
 import styles from "./AssetPage.module.css";
@@ -29,64 +29,77 @@ const usd = new Intl.NumberFormat("en-US", {
   style: "currency", currency: "USD", notation: "compact", maximumFractionDigits: 1,
 });
 
-const integer = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
-
-function number(value: unknown): number {
+function amount(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") return null;
   const parsed = Number(value);
-  return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
 }
 
-function asArray(input: unknown): unknown[] {
-  if (Array.isArray(input)) return input;
-  if (typeof input !== "string") return [];
+function asArray(value: unknown): unknown[] {
+  if (Array.isArray(value)) return value;
+  if (typeof value !== "string") return [];
   try {
-    const parsed: unknown = JSON.parse(input);
+    const parsed: unknown = JSON.parse(value);
     return Array.isArray(parsed) ? parsed : [];
   } catch {
     return [];
   }
 }
 
-function probabilityValues(input: unknown): number[] {
-  const values = asArray(input);
-  if (!values.length && (typeof input === "number" || typeof input === "string")) {
+function probabilities(input: unknown): number[] {
+  const parsed = asArray(input);
+  if (!parsed.length && (typeof input === "string" || typeof input === "number")) {
     const single = Number(input);
-    if (Number.isFinite(single) && single >= 0 && single <= 1) return [single];
+    return Number.isFinite(single) && single >= 0 && single <= 1 ? [single] : [];
   }
-  return values.map(Number).filter((value) => Number.isFinite(value) && value >= 0 && value <= 1);
+  return parsed.map(Number).filter((value) => Number.isFinite(value) && value >= 0 && value <= 1);
 }
 
-function outcomeNames(input: unknown): string[] {
+function names(input: unknown): string[] {
   return asArray(input).filter((value): value is string => typeof value === "string");
 }
 
 function tokenIds(input: unknown): string[] {
   const parsed = asArray(input);
-  if (parsed.every((value) => typeof value === "string")) return parsed as string[];
-  // Some stored API payloads have split JSON strings. Do not fabricate token IDs.
-  return [];
+  return parsed.every((value) => typeof value === "string") ? parsed as string[] : [];
 }
 
 function marketUrl(market: Market): string {
   const raw = market.url || `/event/${encodeURIComponent(market.eventSlug)}`;
   try {
-    const parsed = new URL(raw, "https://polymarket.com");
-    if (parsed.protocol === "https:" && (parsed.hostname === "polymarket.com" || parsed.hostname === "www.polymarket.com")) return parsed.href;
+    const url = new URL(raw, "https://polymarket.com");
+    if (url.protocol === "https:" && ["polymarket.com", "www.polymarket.com"].includes(url.hostname)) {
+      return url.href;
+    }
   } catch {
-    // Ignore malformed upstream URL.
+    // A malformed upstream URL must not become an unsafe external link.
   }
   return "https://polymarket.com";
 }
 
-function formatDate(input: string | null): string | null {
+function dateLabel(input: string | null): string | null {
   if (!input) return null;
   const date = new Date(input);
-  if (!Number.isFinite(date.getTime())) return null;
-  return date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+  return Number.isFinite(date.getTime())
+    ? date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })
+    : null;
 }
 
-function pct(value: number): string {
-  return `${(value * 100).toFixed(1)}%`;
+function pct(value: number | null): string {
+  return value === null ? "—" : `${(value * 100).toFixed(1)}%`;
+}
+
+function money(value: unknown): string {
+  const parsed = amount(value);
+  return parsed === null ? "—" : usd.format(parsed);
+}
+
+function quote(value: string | null | undefined): string {
+  if (value == null || value.trim() === "") return "—";
+  const parsed = Number(value);
+  // CLOB prices are fractions of one dollar. Keep unrecognized data unchanged.
+  return Number.isFinite(parsed) && parsed >= 0 && parsed <= 1
+    ? `${(parsed * 100).toFixed(1)}¢` : value;
 }
 
 async function fetcher([url]: [string, string]): Promise<ApiResponse> {
@@ -95,133 +108,161 @@ async function fetcher([url]: [string, string]): Promise<ApiResponse> {
   return response.json();
 }
 
-function SummaryItem({ title, value, detail }: { title: string; value: string; detail?: string }) {
-  return <div className={styles.predStat}>
-    <dt>{title}</dt>
-    <dd>{value}</dd>
-    {detail && <span>{detail}</span>}
-  </div>;
-}
+function MarketCard({ market, rank, featured }: { market: Market; rank: number; featured: boolean }) {
+  const labels = names(market.outcomes);
+  const values = probabilities(market.gammaOutcomePrices);
+  const first = values[0] ?? null;
+  const second = values[1] ?? null;
+  const firstName = labels[0] ?? "Yes";
+  const secondName = labels[1] ?? "No";
+  const binary = values.length === 2;
+  const tokens = tokenIds(market.clobTokenIds);
+  const prices = tokens.length ? market.livePrices?.[tokens[0]] : null;
+  const ends = dateLabel(market.endDate);
 
-function MarketCard({ market, rank }: { market: Market; rank: number }) {
-  const names = outcomeNames(market.outcomes);
-  const prices = probabilityValues(market.gammaOutcomePrices);
-  const first = prices[0] ?? null;
-  const second = prices[1] ?? null;
-  const firstName = names[0] ?? "Yes";
-  const secondName = names[1] ?? "No";
-  const isBinary = prices.length === 2;
-  const ids = tokenIds(market.clobTokenIds);
-  const bidAsk = ids.length ? market.livePrices?.[ids[0]] : undefined;
-  const endDate = formatDate(market.endDate);
-
-  return <article className={styles.marketCard}>
-    <div className={styles.cardTop}>
-      <span className={styles.marketRank}>{rank}</span>
-      <a href={marketUrl(market)} target="_blank" rel="noopener noreferrer" className={styles.marketTitle}>
-        {market.question} <ExternalLink size={12} aria-label="Opens Polymarket in a new tab" />
-      </a>
-    </div>
-    <div className={styles.marketProbabilities}>
-      <div className={styles.mainOutcome}>
-        <span>{firstName}</span>
-        <strong>{first === null ? "—" : pct(first)}</strong>
+  return (
+    <article className={`${styles.marketCard} ${featured ? styles.featuredMarket : ""}`}>
+      <div className={styles.cardTop}>
+        <span className={styles.marketRank}>{String(rank).padStart(2, "0")}</span>
+        <a href={marketUrl(market)} target="_blank" rel="noopener noreferrer" className={styles.marketTitle}>
+          {market.question} <ExternalLink aria-label="Opens contract on Polymarket" size={12} />
+        </a>
       </div>
-      <div className={styles.secondOutcome}>
-        <span>{secondName}</span>
-        <strong>{second === null ? "—" : pct(second)}</strong>
+      <div className={styles.marketProbabilities}>
+        <div className={styles.mainOutcome}><span>{firstName}</span><strong>{pct(first)}</strong></div>
+        {second !== null && <div className={styles.secondOutcome}><span>{secondName}</span><strong>{pct(second)}</strong></div>}
       </div>
-    </div>
-    {isBinary && first !== null && <div className={styles.probabilityTrack} role="img" aria-label={`${firstName}: ${pct(first)}; ${secondName}: ${second === null ? "unknown" : pct(second)}`}>
-      <div className={styles.probabilityBar} style={{ width: `${Math.max(0, Math.min(100, first * 100))}%` }} />
-    </div>}
-    {bidAsk && (bidAsk.buy != null || bidAsk.sell != null) && <div className={styles.bidAsk}>
-      <span>Live {firstName} quote</span>
-      <span>Buy <strong>{bidAsk.buy ?? "—"}</strong></span>
-      <span>Sell <strong>{bidAsk.sell ?? "—"}</strong></span>
-    </div>}
-    <div className={styles.marketFooter}>
-      <span>24h vol. <strong>{usd.format(number(market.volume24hr))}</strong></span>
-      <span>Liquidity <strong>{usd.format(number(market.liquidity))}</strong></span>
-      {endDate && <span className={styles.marketDate}>Ends {endDate}</span>}
-    </div>
-  </article>;
+      {binary && first !== null && (
+        <div className={styles.probabilityTrack} role="img" aria-label={`${firstName}: ${pct(first)}; ${secondName}: ${pct(second)}`}>
+          <span className={styles.probabilityBar} style={{ width: `${Math.min(100, Math.max(0, first * 100))}%` }} />
+        </div>
+      )}
+      {values.length > 2 && <div className={styles.multiOutcome}>Showing 2 of {values.length} outcomes · View full contract ↗</div>}
+      {prices && (prices.buy != null || prices.sell != null) && (
+        <div className={styles.bidAsk}>
+          <span>{firstName} quotes</span>
+          <span>Buy <strong>{quote(prices.buy)}</strong></span>
+          <span>Sell <strong>{quote(prices.sell)}</strong></span>
+        </div>
+      )}
+      <div className={styles.marketFooter}>
+        <span>24h vol <strong>{money(market.volume24hr)}</strong></span>
+        <span>Liquidity <strong>{money(market.liquidity)}</strong></span>
+        {ends && <span className={styles.marketDate}>Ends {ends}</span>}
+      </div>
+    </article>
+  );
 }
 
 export default function AssetPredictionMarkets({ asset, limit = 8 }: { asset: string; limit?: number }) {
   const { user } = useAuth();
   const [sortBy, setSortBy] = useState<SortKey>("volume");
   const [direction, setDirection] = useState<SortDirection>("high");
-  const query = new URLSearchParams({ limit: String(limit), livePrices: "1" });
-  const key: [string, string] | null = user ? [`/api/polymarket/${encodeURIComponent(asset)}?${query.toString()}`, user.uid] : null;
+  const [search, setSearch] = useState("");
+  const params = new URLSearchParams({ limit: String(limit), livePrices: "1" });
+  const key: [string, string] | null = user
+    ? [`/api/polymarket/${encodeURIComponent(asset)}?${params.toString()}`, user.uid]
+    : null;
   const { data, error, isLoading, isValidating, mutate } = useSWR<ApiResponse>(key, fetcher, {
     refreshInterval: 15_000,
     revalidateOnFocus: false,
     keepPreviousData: true,
   });
-  const markets = useMemo(() => data?.data ?? [], [data]);
-  const orderedMarkets = useMemo(() => [...markets].sort((a, b) => {
-    const left = sortBy === "volume" ? number(a.volume24hr) : number(a.liquidity);
-    const right = sortBy === "volume" ? number(b.volume24hr) : number(b.liquidity);
-    return direction === "high" ? right - left : left - right;
-  }).slice(0, limit), [markets, sortBy, direction, limit]);
-  const summary = useMemo(() => {
-    const mostActive = [...markets].sort((a, b) => number(b.volume24hr) - number(a.volume24hr))[0] ?? null;
-    const deepest = [...markets].sort((a, b) => number(b.liquidity) - number(a.liquidity))[0] ?? null;
-    const decided = markets.flatMap((market) => {
-      const prices = probabilityValues(market.gammaOutcomePrices);
-      const names = outcomeNames(market.outcomes);
-      if (prices.length !== 2) return [];
-      const index = prices[0] >= prices[1] ? 0 : 1;
-      return [{ market, probability: prices[index], outcome: names[index] ?? (index === 0 ? "Yes" : "No") }];
-    }).sort((a, b) => b.probability - a.probability)[0] ?? null;
+
+  const markets = useMemo(() => Array.isArray(data?.data) ? data.data : [], [data]);
+  const needle = search.trim().toLocaleLowerCase();
+  const orderedMarkets = useMemo(() => markets
+    .filter((market) => !needle || (market.question || "").toLocaleLowerCase().includes(needle))
+    .sort((left, right) => {
+      const a = amount(sortBy === "volume" ? left.volume24hr : left.liquidity) ?? 0;
+      const b = amount(sortBy === "volume" ? right.volume24hr : right.liquidity) ?? 0;
+      return direction === "high" ? b - a : a - b;
+    })
+    .slice(0, limit), [markets, needle, sortBy, direction, limit]);
+  const overview = useMemo(() => {
+    let totalVolume = 0;
+    let totalLiquidity = 0;
+    let hasVolume = false;
+    let hasLiquidity = false;
+    let top: Market | null = null;
+    let topVolume = -1;
+    for (const market of markets) {
+      const volume = amount(market.volume24hr);
+      const liquidity = amount(market.liquidity);
+      if (volume !== null) {
+        totalVolume += volume;
+        hasVolume = true;
+        if (volume > topVolume) { top = market; topVolume = volume; }
+      }
+      if (liquidity !== null) { totalLiquidity += liquidity; hasLiquidity = true; }
+    }
     return {
-      volume: markets.reduce((sum, item) => sum + number(item.volume24hr), 0),
-      liquidity: markets.reduce((sum, item) => sum + number(item.liquidity), 0),
-      mostActive, deepest, decided,
+      volume: hasVolume ? money(totalVolume) : "—",
+      liquidity: hasLiquidity ? money(totalLiquidity) : "—",
+      top,
     };
   }, [markets]);
 
-  if (!user) return <div className={styles.marketEmpty}>Sign in to view prediction markets and live quotes. Market prices and charts remain publicly available.</div>;
+  if (!user) return <div className={styles.marketEmpty}>Sign in to view prediction markets and live contract quotes. Price charts and market data remain available without an account.</div>;
   if (isLoading && !data) return <div className={styles.marketEmpty} aria-live="polite">Loading prediction markets…</div>;
   if (error && !data) return <div className={styles.marketEmpty}>
     <p>Prediction markets are temporarily unavailable.</p>
     <button type="button" className={styles.sortButton} onClick={() => void mutate()}>Retry</button>
   </div>;
 
-  return <div className={styles.predictionContent}>
-    <div className={styles.activityPanel}>
-      <div className={styles.activityHeading}>
-        <div><span className={styles.kicker}>POLYMARKET ACTIVITY</span><h3>Contract intelligence</h3></div>
-        <span className={styles.muted}>Volume and liquidity in USD</span>
+  return (
+    <div className={styles.predictionContent}>
+      <div className={styles.predictionOverview}>
+        <div className={styles.overviewLabel}><span className={styles.liveDot} /> MARKET ACTIVITY <span className={styles.overviewHint}>· Returned contracts only</span></div>
+        <dl className={styles.predictionStats}>
+          <div><dt>Active in sample</dt><dd>{markets.length.toLocaleString()}</dd></div>
+          <div><dt>24h volume</dt><dd>{overview.volume}</dd></div>
+          <div><dt>Available liquidity</dt><dd>{overview.liquidity}</dd></div>
+        </dl>
+        {overview.top && <div className={styles.mostActive}>
+          <span>Most active</span>
+          <a href={marketUrl(overview.top)} target="_blank" rel="noopener noreferrer">
+            {overview.top.question} <ExternalLink size={11} aria-label="Opens contract on Polymarket" />
+          </a>
+          <strong>{money(overview.top.volume24hr)} / 24h</strong>
+        </div>}
       </div>
-      <dl className={styles.predStats}>
-        <SummaryItem title="Markets in sample" value={integer.format(markets.length)} detail={data && data.count > markets.length ? `${integer.format(data.count)} reported in feed` : "Active contracts"} />
-        <SummaryItem title="24h trading volume" value={usd.format(summary.volume)} detail="Across returned markets" />
-        <SummaryItem title="Available liquidity" value={usd.format(summary.liquidity)} detail="Across returned markets" />
-      </dl>
-      {markets.length > 0 && <div className={styles.signalGrid}>
-        {summary.mostActive && <div><span>Most active</span><p>{summary.mostActive.question}</p><strong>{usd.format(number(summary.mostActive.volume24hr))} / 24h</strong></div>}
-        {summary.decided && <div><span>Highest priced outcome</span><p>{summary.decided.market.question}</p><strong>{summary.decided.outcome}: {pct(summary.decided.probability)}</strong></div>}
-        {summary.deepest && <div><span>Deepest liquidity</span><p>{summary.deepest.question}</p><strong>{usd.format(number(summary.deepest.liquidity))}</strong></div>}
-      </div>}
-      <p className={styles.analysisNotice}>Contracts can have different price thresholds and settlement dates. Their probabilities are displayed individually rather than combined into an unreliable bullish/bearish score.</p>
-    </div>
 
-    <div className={styles.marketsToolbar}>
-      <div><h3>Active markets</h3><p>Sorted by {sortBy === "volume" ? "24h volume" : "liquidity"} · {integer.format(orderedMarkets.length)} shown</p></div>
-      <div className={styles.marketActions}>
-        <div className={styles.segment} role="group" aria-label="Sort markets by">
-          <button type="button" aria-pressed={sortBy === "volume"} className={sortBy === "volume" ? styles.activeSegment : undefined} onClick={() => setSortBy("volume")}>Volume</button>
-          <button type="button" aria-pressed={sortBy === "liquidity"} className={sortBy === "liquidity" ? styles.activeSegment : undefined} onClick={() => setSortBy("liquidity")}>Liquidity</button>
+      <div className={styles.marketsToolbar}>
+        <div className={styles.toolbarTitle}>
+          <h3>Active contracts</h3>
+          <p>{needle ? `${orderedMarkets.length} matching the search` : `${orderedMarkets.length} shown`}{data && data.count > markets.length ? ` · ${data.count.toLocaleString()} in feed` : ""}</p>
         </div>
-        <button type="button" className={styles.sortButton} onClick={() => setDirection((current) => current === "high" ? "low" : "high")}>{direction === "high" ? <ArrowDown size={13}/> : <ArrowUp size={13}/>} {direction === "high" ? "High" : "Low"}</button>
-        <button type="button" className={styles.sortButton} disabled={isValidating} onClick={() => void mutate()} aria-label="Refresh prediction markets" title="Refresh prediction markets"><RefreshCw size={14}/></button>
+        <div className={styles.marketActions}>
+          <label className={styles.contractSearch}>
+            <Search size={14} aria-hidden="true" />
+            <input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Find a contract" aria-label="Search shown contracts" />
+          </label>
+          <div className={styles.segment} role="group" aria-label="Sort contracts by">
+            <button type="button" aria-pressed={sortBy === "volume"} className={sortBy === "volume" ? styles.activeSegment : undefined} onClick={() => setSortBy("volume")}>Volume</button>
+            <button type="button" aria-pressed={sortBy === "liquidity"} className={sortBy === "liquidity" ? styles.activeSegment : undefined} onClick={() => setSortBy("liquidity")}>Liquidity</button>
+          </div>
+          <button type="button" className={styles.sortButton} onClick={() => setDirection((current) => current === "high" ? "low" : "high")} aria-label={direction === "high" ? "Sort lowest first" : "Sort highest first"}>
+            {direction === "high" ? <ArrowDown size={13} /> : <ArrowUp size={13} />}{direction === "high" ? "High" : "Low"}
+          </button>
+          <button type="button" className={styles.sortButton} disabled={isValidating} onClick={() => void mutate()} aria-label="Refresh prediction markets" title="Refresh prediction markets">
+            <RefreshCw size={14} className={isValidating ? styles.spinning : undefined} />
+          </button>
+        </div>
       </div>
+      {orderedMarkets.length > 0 ? (
+        <div className={styles.marketGrid}>
+          {orderedMarkets.map((market, index) => (
+            <MarketCard
+              key={`${market.eventSlug}-${market.marketSlug}-${index}`}
+              market={market}
+              rank={index + 1}
+              featured={index === 0 && sortBy === "volume" && direction === "high" && !needle}
+            />
+          ))}
+        </div>
+      ) : <div className={styles.marketEmpty}>{needle ? "No returned contracts match your search." : "No active markets found for this asset."}</div>}
+      {error && data && <p className={styles.dataNotice}>Live refresh failed. Showing the last available prediction-market data.</p>}
     </div>
-    {orderedMarkets.length ? <div className={styles.marketGrid}>
-      {orderedMarkets.map((market, index) => <MarketCard key={`${market.eventSlug}-${market.marketSlug}-${index}`} market={market} rank={index + 1} />)}
-    </div> : <div className={styles.marketEmpty}>No active markets found for this asset.</div>}
-    {error && data && <p className={styles.dataNotice}>Live refresh failed. Showing the last available prediction-market data.</p>}
-  </div>;
+  );
 }
