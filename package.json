@@ -1,6 +1,6 @@
 {
   "name": "app-valuevisuals-io",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
@@ -18,9 +18,9 @@
     "firebase": "^12.3.0",
     "framer-motion": "^12.23.22",
     "lucide-react": "^0.544.0",
-    "next": "15.5.28",
-    "react": "19.1.2",
-    "react-dom": "19.1.2",
+    "next": "15.5.29",
+    "react": "19.1.10",
+    "react-dom": "19.1.10",
     "recharts": "^3.2.1",
     "swr": "^2.3.6",
     "zustand": "^5.0.15"
@@ -32,8 +32,12 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "15.5.4",
+    "eslint-config-next": "15.5.29",
     "tailwindcss": "^4",
     "typescript": "^5"
+  },
+  "overrides": {
+    "@grpc/grpc-js": "1.13.7",
+    "postcss": "8.5.33"
   }
 }
